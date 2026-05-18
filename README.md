@@ -14,8 +14,23 @@ Inspired by [Karpathy's LLM wiki pattern](https://gist.github.com/karpathy/442a6
 ## Install
 
 ```
-/plugin install https://github.com/pajireg/llm-wiki
+/plugin marketplace add pajireg/llm-wiki
+/plugin install llm-wiki@llm-wiki
 ```
+
+## Update
+
+```
+/plugin marketplace update llm-wiki
+```
+
+## Uninstall
+
+```
+/plugin marketplace remove llm-wiki
+```
+
+Removing the marketplace also uninstalls the plugin. Your vault files are not touched.
 
 ## Bootstrap a vault
 
@@ -28,13 +43,7 @@ claude
 
 `/wiki-init` creates the directory structure, copies the schema templates, and prints next-step guidance.
 
-## Enable automatic session capture (optional)
-
-```bash
-bash <plugin-install-path>/scripts/install-hook.sh
-```
-
-This guides you through adding a `SessionEnd` hook to `~/.claude/settings.json` and setting `LLM_WIKI_VAULT` in your shell.
+Session auto-capture activates automatically after `/wiki-init`. No env vars or settings.json edits needed.
 
 ## Commands
 

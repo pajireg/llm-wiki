@@ -2,12 +2,12 @@
 """SessionEnd hook for llm-wiki.
 
 Reads JSON from stdin: {session_id, cwd, transcript}
-Writes a source markdown file into $LLM_WIKI_VAULT/sources/claude-sessions/.
-No-op if $LLM_WIKI_VAULT is unset or the vault is not initialized.
+Writes a source markdown file into <vault>/sources/claude-sessions/.
+Vault path is read from ~/.config/llm-wiki/vault-path (written by /wiki-init).
+No-op if not configured or the vault is not initialized.
 """
 import datetime
 import json
-import os
 import pathlib
 import re
 import sys
@@ -83,15 +83,28 @@ def slugify(text: str, max_len: int = 40) -> str:
     return s[:max_len] or "session"
 
 
-def main() -> int:
-    vault_env = os.environ.get("LLM_WIKI_VAULT")
-    if not vault_env:
-        return 0  # No-op when not configured
+def get_vault_path() -> pathlib.Path | None:
+    """Read vault path from ~/.config/llm-wiki/vault-path. Return None if not configured."""
+    config = pathlib.Path.home() / ".config" / "llm-wiki" / "vault-path"
+    if not config.is_file():
+        return None
+    path_str = config.read_text().strip()
+    if not path_str:
+        return None
+    vault = pathlib.Path(path_str)
+    if not vault.is_dir():
+        return None
+    return vault
 
-    vault = pathlib.Path(vault_env)
+
+def main() -> int:
+    vault = get_vault_path()
+    if vault is None:
+        return 0  # No vault configured (i.e., /wiki-init was not run)
+
     sessions_dir = vault / "sources" / "claude-sessions"
     if not sessions_dir.is_dir():
-        return 0  # Vault not initialized
+        return 0  # Vault structure incomplete
 
     try:
         payload = json.load(sys.stdin)

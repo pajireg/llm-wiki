@@ -48,6 +48,11 @@ python3 <plugin>/scripts/validate-schema.py <vault>/schema/
 
 If exit code is non-zero, abort and report the issue.
 
+Record vault path for session auto-capture:
+
+- Create `~/.config/llm-wiki/` directory if not exists.
+- Write the vault's absolute path to `~/.config/llm-wiki/vault-path`.
+
 ## Post-bootstrap output
 
 Print:
@@ -60,18 +65,15 @@ Next steps (optional, recommended):
   1. Customize schema:
      - Edit schema/namespaces.md to fill in your cwd→namespace mapping.
 
-  2. Enable Claude session auto-capture:
-     - Run: bash <plugin>/scripts/install-hook.sh
-     - This will guide you to register the SessionEnd hook globally.
-
-  3. Track with git:
+  2. Track with git (optional):
      - git init && git add . && git commit -m "init"
-     - Add a private remote and push.
 
-  4. Start using:
+  3. Start using:
      - /wiki-ingest sources/manual/<some-note>.md
      - /wiki-ask "<your question>"
      - /wiki-lint
+
+Session auto-capture is already active. Every Claude Code session will be saved to sources/claude-sessions/.
 ```
 
 ## Do not
@@ -79,4 +81,3 @@ Next steps (optional, recommended):
 - Initialize a non-empty directory (unless only `.git`, `.obsidian`, `.claude` exist).
 - Touch existing `.git/`, `.obsidian/`, `.claude/`.
 - Run `git init` automatically — user's choice.
-- Register the SessionEnd hook automatically — user's choice.
