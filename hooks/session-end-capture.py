@@ -6,7 +6,6 @@ Writes a source markdown file into $LLM_WIKI_VAULT/sources/claude-sessions/.
 No-op if $LLM_WIKI_VAULT is unset or the vault is not initialized.
 """
 import datetime
-import fnmatch
 import json
 import os
 import pathlib
@@ -53,17 +52,28 @@ def parse_cwd_to_namespace(namespaces_md: pathlib.Path) -> tuple[list[tuple[str,
 
 
 def determine_namespace(cwd: str, patterns: list[tuple[str, str]], default: str) -> str:
-    """Match cwd against patterns (first match wins). Supports ** for recursive match."""
+    """Match cwd against patterns (first match wins).
+
+    Pattern syntax: a prefix ending with /** matches any descendant.
+    Exact prefix match (no **) matches when cwd starts with pattern.
+    """
     for pattern, ns in patterns:
-        # Convert ** to * for fnmatch (close enough for our needs)
-        glob = pattern.replace("**", "*")
-        if fnmatch.fnmatch(cwd, glob):
-            return ns
-        # Also try prefix match (everything before **)
-        prefix = pattern.split("**", 1)[0]
-        if prefix and cwd.startswith(prefix):
+        # Strip trailing /** or ** to get the prefix
+        prefix = pattern
+        if prefix.endswith("/**"):
+            prefix = prefix[:-3]
+        elif prefix.endswith("**"):
+            prefix = prefix[:-2]
+        # Match if cwd is the prefix itself or starts with prefix + "/"
+        if cwd == prefix or cwd.startswith(prefix.rstrip("/") + "/"):
             return ns
     return default
+
+
+def yaml_quote(value: str) -> str:
+    """Quote a string value for safe YAML output."""
+    escaped = value.replace("\\", "\\\\").replace('"', '\\"')
+    return f'"{escaped}"'
 
 
 def slugify(text: str, max_len: int = 40) -> str:
@@ -114,8 +124,8 @@ created: {today}
 updated: {today}
 ingested_at: {now_iso}
 processed: false
-session_id: {session_id}
-cwd: {cwd}
+session_id: {yaml_quote(session_id)}
+cwd: {yaml_quote(cwd)}
 ---
 
 # Claude session: {cwd_basename}

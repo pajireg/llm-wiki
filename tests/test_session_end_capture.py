@@ -57,8 +57,8 @@ def test_writes_file_with_required_frontmatter(tmp_path):
     assert "source_type: claude_session" in content
     assert "namespace: tech" in content  # matched /test/projects/**
     assert "processed: false" in content
-    assert "session_id: test-session-123abc" in content
-    assert "cwd: /test/projects/foo" in content
+    assert 'session_id: "test-session-123abc"' in content
+    assert 'cwd: "/test/projects/foo"' in content
 
 
 def test_default_namespace_when_no_match(tmp_path):
