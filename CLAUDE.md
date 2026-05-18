@@ -44,6 +44,7 @@ skills/llm-wiki/SKILL.md                          # loaded by every /llm-wiki:* 
 hooks/{hooks.json, session-end-capture.sh, session-end-capture.py}
 templates/                                        # copied into vault by /llm-wiki:init
   schema/                                         # 6-file constitution
+  manual/welcome.md                               # onboarding source (user's first ingest)
   README.template.md, gitignore.template
 scripts/                                          # validate-schema.py, install-hook.sh
 tests/                                            # pytest + JSONL fixtures
