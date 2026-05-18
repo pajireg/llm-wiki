@@ -1,6 +1,6 @@
 # {{VAULT_NAME}}
 
-A personal LLM-maintained wiki built with [llm-wiki](https://github.com/sumin/llm-wiki).
+A personal LLM-maintained wiki built with [llm-wiki](https://github.com/pajireg/llm-wiki).
 
 ## Layout
 

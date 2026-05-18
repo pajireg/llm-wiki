@@ -14,7 +14,7 @@ Inspired by [Karpathy's LLM wiki pattern](https://gist.github.com/karpathy/442a6
 ## Install
 
 ```
-/plugin install https://github.com/sumin/llm-wiki
+/plugin install https://github.com/pajireg/llm-wiki
 ```
 
 ## Bootstrap a vault

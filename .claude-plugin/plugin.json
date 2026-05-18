@@ -6,8 +6,8 @@
     "name": "sumin",
     "email": "pajireg@naver.com"
   },
-  "homepage": "https://github.com/sumin/llm-wiki",
-  "repository": "https://github.com/sumin/llm-wiki",
+  "homepage": "https://github.com/pajireg/llm-wiki",
+  "repository": "https://github.com/pajireg/llm-wiki",
   "license": "MIT",
   "keywords": ["wiki", "pkm", "llm", "knowledge-base", "claude-code"]
 }
