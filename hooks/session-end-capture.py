@@ -6,6 +6,8 @@ Writes a source markdown file into <vault>/sources/claude-sessions/.
 Vault path is read from ~/.config/llm-wiki/vault-path (written by /wiki-init).
 No-op if not configured or the vault is not initialized.
 """
+from __future__ import annotations
+
 import datetime
 import json
 import pathlib
