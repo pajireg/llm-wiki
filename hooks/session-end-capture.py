@@ -10,63 +10,137 @@ import datetime
 import json
 import pathlib
 import re
+import subprocess
 import sys
 
 
-def parse_cwd_to_namespace(namespaces_md: pathlib.Path) -> tuple[list[tuple[str, str]], str]:
-    """Parse the cwd_to_namespace block from schema/namespaces.md.
+def get_git_info(cwd: str) -> tuple[str | None, str | None]:
+    """Return (remote_url, owner) for the given cwd, or (None, None) if not a git repo or no remote."""
+    if not cwd:
+        return None, None
+    try:
+        result = subprocess.run(
+            ["git", "-C", cwd, "config", "--get", "remote.origin.url"],
+            capture_output=True, text=True, timeout=2,
+        )
+        if result.returncode != 0:
+            return None, None
+        url = result.stdout.strip()
+        if not url:
+            return None, None
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return None, None
 
-    Returns (patterns, default) where patterns is a list of (glob_pattern, namespace) tuples.
+    owner = parse_git_owner(url)
+    return url, owner
+
+
+def parse_git_owner(url: str) -> str | None:
+    """Extract the owner part from a git remote URL.
+
+    Supports:
+      git@github.com:OWNER/repo.git
+      git@github.com:OWNER/repo
+      https://github.com/OWNER/repo.git
+      https://github.com/OWNER/repo
+      ssh://git@host/OWNER/repo.git
+      https://gitlab.example.com/OWNER/repo.git
     """
-    patterns: list[tuple[str, str]] = []
-    default = "personal"
-    if not namespaces_md.is_file():
-        return patterns, default
+    if not url:
+        return None
+    # SSH form: git@host:OWNER/repo(.git)?
+    m = re.match(r"^[^@]+@[^:]+:([^/]+)/", url)
+    if m:
+        return m.group(1)
+    # HTTPS or ssh:// form: <scheme>://[user@]host/OWNER/repo(.git)?
+    m = re.match(r"^[a-z]+://(?:[^@/]+@)?[^/]+/([^/]+)/", url)
+    if m:
+        return m.group(1)
+    return None
 
-    in_block = False
+
+def parse_namespaces_md(namespaces_md: pathlib.Path) -> tuple[dict[str, str], list[tuple[str, str]], str]:
+    """Parse namespaces.md.
+
+    Returns:
+      (owner_map, cwd_patterns, default)
+        owner_map: {git_owner: namespace}
+        cwd_patterns: [(glob_pattern, namespace)]
+        default: namespace string
+    """
+    owner_map: dict[str, str] = {}
+    cwd_patterns: list[tuple[str, str]] = []
+    default = "personal"
+
+    if not namespaces_md.is_file():
+        return owner_map, cwd_patterns, default
+
+    current_block: str | None = None  # "owner" | "cwd" | None
+
     for line in namespaces_md.read_text().splitlines():
         stripped = line.strip()
+
+        # Top-level keys
+        if stripped.startswith("git_owner_to_namespace:"):
+            current_block = "owner"
+            continue
         if stripped.startswith("cwd_to_namespace:"):
-            in_block = True
+            current_block = "cwd"
             continue
-        if not in_block:
+        m_default = re.match(r"^default\s*:\s*([a-zA-Z_]+)\s*$", stripped)
+        if m_default and (not line or not line[0].isspace()):
+            default = m_default.group(1)
+            current_block = None
             continue
-        # End of block: top-level non-empty line that isn't indented
+
+        if current_block is None:
+            continue
+
+        # End of block: top-level non-indented line that's a markdown header etc.
         if line and not line[0].isspace() and stripped and not stripped.startswith("#"):
-            break
+            current_block = None
+            continue
         if not stripped or stripped.startswith("#"):
             continue
 
-        # default: <ns>
-        m_default = re.match(r"default\s*:\s*([a-zA-Z_]+)\s*$", stripped)
-        if m_default:
-            default = m_default.group(1)
-            continue
+        # Parse entry
+        if current_block == "owner":
+            # owner_name: namespace
+            m = re.match(r"^([a-zA-Z0-9_.-]+)\s*:\s*([a-zA-Z_]+)\s*$", stripped)
+            if m:
+                owner_map[m.group(1)] = m.group(2)
+        elif current_block == "cwd":
+            # "pattern": namespace
+            m = re.match(r'^"([^"]+)"\s*:\s*([a-zA-Z_]+)\s*$', stripped)
+            if m:
+                cwd_patterns.append((m.group(1), m.group(2)))
 
-        # "pattern": namespace
-        m_pat = re.match(r'"([^"]+)"\s*:\s*([a-zA-Z_]+)\s*$', stripped)
-        if m_pat:
-            patterns.append((m_pat.group(1), m_pat.group(2)))
-
-    return patterns, default
+    return owner_map, cwd_patterns, default
 
 
-def determine_namespace(cwd: str, patterns: list[tuple[str, str]], default: str) -> str:
-    """Match cwd against patterns (first match wins).
+def determine_namespace(
+    cwd: str,
+    git_owner: str | None,
+    owner_map: dict[str, str],
+    cwd_patterns: list[tuple[str, str]],
+    default: str,
+) -> str:
+    """Decide namespace via priority: git_owner → cwd pattern → default."""
+    # 1. git owner
+    if git_owner and git_owner in owner_map:
+        return owner_map[git_owner]
 
-    Pattern syntax: a prefix ending with /** matches any descendant.
-    Exact prefix match (no **) matches when cwd starts with pattern.
-    """
-    for pattern, ns in patterns:
-        # Strip trailing /** or ** to get the prefix
+    # 2. cwd pattern
+    for pattern, ns in cwd_patterns:
         prefix = pattern
         if prefix.endswith("/**"):
             prefix = prefix[:-3]
         elif prefix.endswith("**"):
             prefix = prefix[:-2]
-        # Match if cwd is the prefix itself or starts with prefix + "/"
         if cwd == prefix or cwd.startswith(prefix.rstrip("/") + "/"):
             return ns
+
+    # 3. default
     return default
 
 
@@ -118,16 +192,26 @@ def main() -> int:
     if len(transcript.strip()) < 50:
         return 0  # Trivial session, skip
 
-    patterns, default = parse_cwd_to_namespace(vault / "schema" / "namespaces.md")
-    namespace = determine_namespace(cwd, patterns, default)
+    # Extract git info from cwd
+    git_remote, git_owner = get_git_info(cwd)
+
+    # Parse namespaces.md and decide
+    owner_map, cwd_patterns, default = parse_namespaces_md(vault / "schema" / "namespaces.md")
+    namespace = determine_namespace(cwd, git_owner, owner_map, cwd_patterns, default)
 
     today = datetime.date.today().isoformat()
     now_iso = datetime.datetime.now().isoformat(timespec="seconds")
-
     cwd_basename = pathlib.Path(cwd).name if cwd else "session"
     slug = slugify(cwd_basename)
     session_prefix = session_id[:8] if session_id else "unknown"
     filename = f"{today}-{slug}-{session_prefix}.md"
+
+    # Optional git frontmatter lines
+    git_lines = ""
+    if git_remote:
+        git_lines += f"git_remote: {yaml_quote(git_remote)}\n"
+    if git_owner:
+        git_lines += f"git_owner: {yaml_quote(git_owner)}\n"
 
     content = f"""---
 type: source
@@ -139,7 +223,7 @@ ingested_at: {now_iso}
 processed: false
 session_id: {yaml_quote(session_id)}
 cwd: {yaml_quote(cwd)}
----
+{git_lines}---
 
 # Claude session: {cwd_basename}
 

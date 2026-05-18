@@ -16,9 +16,14 @@ def make_vault(tmp_path: Path, namespaces_content: str = None) -> Path:
     (vault / "schema").mkdir(parents=True)
     if namespaces_content is None:
         namespaces_content = (
+            "git_owner_to_namespace:\n"
+            "  pajireg: personal\n"
+            "  acme-corp: work\n"
+            "\n"
             "cwd_to_namespace:\n"
             '  "/test/projects/**": tech\n'
-            "  default: personal\n"
+            "\n"
+            "default: personal\n"
         )
     (vault / "schema" / "namespaces.md").write_text(namespaces_content)
     return vault
@@ -132,3 +137,80 @@ def test_filename_uses_date_and_slug(tmp_path):
     assert "my-cool-project" in name
     assert "12345678" in name  # session_id prefix
     assert name.endswith(".md")
+
+
+def test_namespace_from_git_owner(tmp_path):
+    """Cwd is a git repo with remote pointing to pajireg/llm-wiki → personal."""
+    vault = make_vault(tmp_path)
+
+    # Set up a fake git repo at a controlled path
+    repo = tmp_path / "fakerepo"
+    repo.mkdir()
+    subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+    subprocess.run(
+        ["git", "remote", "add", "origin", "git@github.com:pajireg/llm-wiki.git"],
+        cwd=repo, check=True,
+    )
+
+    payload = {
+        "session_id": "test-git-owner",
+        "cwd": str(repo),
+        "transcript": "x" * 100,
+    }
+    result = run_hook(vault, payload, tmp_path)
+    assert result.returncode == 0, result.stderr
+
+    files = list_captured(vault)
+    assert len(files) == 1
+    content = files[0].read_text()
+    assert "namespace: personal" in content   # matched git_owner: pajireg
+    assert "git_owner:" in content
+    assert "pajireg" in content
+    assert "git_remote:" in content
+
+
+def test_namespace_git_owner_unmapped_falls_back_to_default(tmp_path):
+    """Git remote owner not in mapping → default namespace, but git info still recorded."""
+    vault = make_vault(tmp_path)
+
+    repo = tmp_path / "fakerepo"
+    repo.mkdir()
+    subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+    subprocess.run(
+        ["git", "remote", "add", "origin", "https://github.com/someother-org/somerepo"],
+        cwd=repo, check=True,
+    )
+
+    payload = {
+        "session_id": "test-unmapped",
+        "cwd": str(repo),
+        "transcript": "x" * 100,
+    }
+    result = run_hook(vault, payload, tmp_path)
+    assert result.returncode == 0, result.stderr
+
+    files = list_captured(vault)
+    content = files[0].read_text()
+    assert "namespace: personal" in content   # fell to default
+    assert "git_owner:" in content
+    assert "someother-org" in content
+
+
+def test_parse_git_owner_handles_ssh_and_https():
+    """Unit test for parse_git_owner helper via import."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        "session_end_capture",
+        str(PLUGIN_ROOT / "hooks" / "session-end-capture.py"),
+    )
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    assert mod.parse_git_owner("git@github.com:pajireg/llm-wiki.git") == "pajireg"
+    assert mod.parse_git_owner("git@github.com:acme-corp/repo") == "acme-corp"
+    assert mod.parse_git_owner("https://github.com/pajireg/llm-wiki.git") == "pajireg"
+    assert mod.parse_git_owner("https://github.com/pajireg/llm-wiki") == "pajireg"
+    assert mod.parse_git_owner("https://gitlab.example.com/team-a/repo.git") == "team-a"
+    assert mod.parse_git_owner("ssh://git@github.com/pajireg/llm-wiki.git") == "pajireg"
+    assert mod.parse_git_owner("") is None
+    assert mod.parse_git_owner("not-a-url") is None
