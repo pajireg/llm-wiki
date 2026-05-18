@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """SessionEnd hook for llm-wiki.
 
-Reads JSON from stdin: {session_id, cwd, transcript}
+Reads JSON from stdin: {session_id, cwd, transcript_path, hook_event_name}
 Writes a source markdown file into <vault>/sources/claude-sessions/.
 Vault path is read from ~/.config/llm-wiki/vault-path (written by /wiki-init).
 No-op if not configured or the vault is not initialized.
@@ -173,6 +173,123 @@ def get_vault_path() -> pathlib.Path | None:
     return vault
 
 
+def _short_input(input_obj: dict, max_len: int = 100) -> str:
+    """Compact one-line representation of tool_use input."""
+    s = json.dumps(input_obj, ensure_ascii=False, separators=(",", ":"))
+    if len(s) > max_len:
+        return s[:max_len] + "..."
+    return s
+
+
+def _format_user_content(content) -> str:
+    """Convert a user message's content to compact markdown."""
+    if isinstance(content, str):
+        return content.strip()
+    if not isinstance(content, list):
+        return ""
+    parts = []
+    for block in content:
+        if not isinstance(block, dict):
+            continue
+        btype = block.get("type")
+        if btype == "text":
+            text = block.get("text", "").strip()
+            if text:
+                parts.append(text)
+        elif btype == "tool_result":
+            raw = block.get("content", "")
+            if isinstance(raw, list):
+                raw = " ".join(
+                    item.get("text", "") if isinstance(item, dict) else str(item)
+                    for item in raw
+                )
+            text = str(raw).strip()
+            if len(text) <= 200:
+                parts.append(f"[tool result: {text}]")
+            else:
+                parts.append(f"[tool result: {len(text)} chars omitted]")
+    return "\n".join(parts).strip()
+
+
+def _format_assistant_content(content) -> str:
+    """Convert an assistant message's content to compact markdown."""
+    if not isinstance(content, list):
+        return ""
+    parts = []
+    for block in content:
+        if not isinstance(block, dict):
+            continue
+        btype = block.get("type")
+        if btype == "text":
+            text = block.get("text", "").strip()
+            if text:
+                parts.append(text)
+        elif btype == "tool_use":
+            name = block.get("name", "?")
+            short = _short_input(block.get("input", {}))
+            parts.append(f"[tool: {name}({short})]")
+        # thinking: skip for token savings
+    return "\n".join(parts).strip()
+
+
+def transcript_from_jsonl(jsonl_path: pathlib.Path, max_chars: int = 80_000) -> str:
+    """Read a transcript JSONL file and produce compact markdown.
+
+    Returns empty string if the file is missing or unreadable.
+    """
+    if not jsonl_path.is_file():
+        return ""
+
+    blocks: list[tuple[str, str]] = []  # (role, text)
+    try:
+        with jsonl_path.open(encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    obj = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                t = obj.get("type")
+                if t not in ("user", "assistant"):
+                    continue
+                msg = obj.get("message")
+                if not isinstance(msg, dict):
+                    continue
+                role = msg.get("role")
+                content = msg.get("content")
+                if role == "user":
+                    text = _format_user_content(content)
+                elif role == "assistant":
+                    text = _format_assistant_content(content)
+                else:
+                    continue
+                if text:
+                    blocks.append((role, text))
+    except OSError:
+        return ""
+
+    # Coalesce: combine same-role consecutive blocks
+    out_lines: list[str] = []
+    last_role: str | None = None
+    for role, text in blocks:
+        if role != last_role:
+            header = "## User" if role == "user" else "## Assistant"
+            out_lines.append(f"\n{header}\n")
+            last_role = role
+        out_lines.append(text)
+        out_lines.append("")
+
+    md = "\n".join(out_lines).strip()
+
+    # Truncate if too long
+    if len(md) > max_chars:
+        half = max_chars // 2
+        md = md[:half] + "\n\n[... middle truncated ...]\n\n" + md[-half:]
+    return md
+
+
 def main() -> int:
     vault = get_vault_path()
     if vault is None:
@@ -189,7 +306,15 @@ def main() -> int:
 
     session_id = payload.get("session_id", "unknown")
     cwd = payload.get("cwd", "")
-    transcript = payload.get("transcript", "")
+
+    # Primary: read transcript from transcript_path (Claude Code's actual input format)
+    transcript_path = payload.get("transcript_path", "")
+    transcript = ""
+    if transcript_path:
+        transcript = transcript_from_jsonl(pathlib.Path(transcript_path))
+    # Fallback: direct transcript field (used by tests)
+    if not transcript:
+        transcript = payload.get("transcript", "")
 
     if len(transcript.strip()) < 50:
         return 0  # Trivial session, skip

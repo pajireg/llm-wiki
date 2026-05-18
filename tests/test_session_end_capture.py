@@ -58,6 +58,50 @@ def list_captured(vault: Path) -> list[Path]:
     return sorted((vault / "sources" / "claude-sessions").glob("*.md"))
 
 
+def make_jsonl_transcript(tmp_path: Path, messages: list) -> Path:
+    """Create a JSONL transcript file from a list of (role, text) tuples.
+
+    Also includes some metadata lines that should be filtered out.
+    """
+    path = tmp_path / "transcript.jsonl"
+    lines = [
+        json.dumps({"type": "last-prompt", "leafUuid": "x", "sessionId": "s"}),
+        json.dumps({"type": "permission-mode", "permissionMode": "default", "sessionId": "s"}),
+        json.dumps({"type": "file-history-snapshot", "messageId": "x", "snapshot": {}, "isSnapshotUpdate": False}),
+    ]
+    for role, text in messages:
+        if role == "user":
+            lines.append(json.dumps({
+                "type": "user",
+                "message": {"role": "user", "content": text},
+            }))
+        elif role == "assistant":
+            lines.append(json.dumps({
+                "type": "assistant",
+                "message": {
+                    "role": "assistant",
+                    "content": [{"type": "text", "text": text}],
+                },
+            }))
+        elif role == "tool_use":
+            # text is "tool_name|json_input"
+            name, _, inp = text.partition("|")
+            lines.append(json.dumps({
+                "type": "assistant",
+                "message": {
+                    "role": "assistant",
+                    "content": [{
+                        "type": "tool_use",
+                        "name": name,
+                        "input": json.loads(inp) if inp else {},
+                        "id": "id1",
+                    }],
+                },
+            }))
+    path.write_text("\n".join(lines) + "\n")
+    return path
+
+
 def test_writes_file_with_required_frontmatter(tmp_path):
     vault = make_vault(tmp_path)
     payload = {
@@ -214,3 +258,94 @@ def test_parse_git_owner_handles_ssh_and_https():
     assert mod.parse_git_owner("ssh://git@github.com/pajireg/llm-wiki.git") == "pajireg"
     assert mod.parse_git_owner("") is None
     assert mod.parse_git_owner("not-a-url") is None
+
+
+# ── New tests: transcript_path / JSONL parsing ──────────────────────────────
+
+
+def test_reads_transcript_from_transcript_path(tmp_path):
+    """transcript_path가 JSONL 파일을 가리키고, 그 내용이 압축 마크다운으로 변환되어 캡처됨."""
+    vault = make_vault(tmp_path)
+    jsonl = make_jsonl_transcript(tmp_path, [
+        ("user", "Hello there, please help me with X."),
+        ("assistant", "Sure, let me look into that for you."),
+        ("user", "Thanks!"),
+    ])
+    payload = {
+        "session_id": "tp-test",
+        "cwd": "/test/projects/foo",
+        "transcript_path": str(jsonl),
+        "hook_event_name": "SessionEnd",
+    }
+    result = run_hook(vault, payload, tmp_path)
+    assert result.returncode == 0, result.stderr
+
+    files = list_captured(vault)
+    assert len(files) == 1
+    body = files[0].read_text()
+    # Compressed markdown markers
+    assert "## User" in body
+    assert "## Assistant" in body
+    assert "Hello there" in body
+    assert "Sure, let me look" in body
+
+
+def test_tool_use_compressed_to_one_line(tmp_path):
+    """assistant의 tool_use 블록은 한 줄 요약으로 변환되어야 함."""
+    vault = make_vault(tmp_path)
+    jsonl = make_jsonl_transcript(tmp_path, [
+        ("user", "Read foo.txt please. This is enough text to pass the trivial filter."),
+        ("tool_use", "Read|{\"file_path\": \"/tmp/foo.txt\"}"),
+        ("assistant", "Here are the contents."),
+    ])
+    payload = {
+        "session_id": "tu-test",
+        "cwd": "/test/projects/foo",
+        "transcript_path": str(jsonl),
+        "hook_event_name": "SessionEnd",
+    }
+    result = run_hook(vault, payload, tmp_path)
+    assert result.returncode == 0, result.stderr
+
+    body = list_captured(vault)[0].read_text()
+    assert "[tool: Read(" in body
+    assert "/tmp/foo.txt" in body
+
+
+def test_metadata_lines_filtered_out(tmp_path):
+    """last-prompt, permission-mode 등 메타 라인은 결과에 포함되지 않음."""
+    vault = make_vault(tmp_path)
+    jsonl = make_jsonl_transcript(tmp_path, [
+        ("user", "real message that should appear in output, long enough for trivial filter"),
+    ])
+    payload = {
+        "session_id": "meta-test",
+        "cwd": "/test/projects/foo",
+        "transcript_path": str(jsonl),
+        "hook_event_name": "SessionEnd",
+    }
+    result = run_hook(vault, payload, tmp_path)
+    body = list_captured(vault)[0].read_text()
+    assert "last-prompt" not in body
+    assert "permission-mode" not in body
+    assert "file-history-snapshot" not in body
+    assert "real message" in body
+
+
+def test_truncation_for_huge_transcript(tmp_path):
+    """80k자 초과면 head + 'middle truncated' + tail."""
+    vault = make_vault(tmp_path)
+    big_text = "X" * 50_000
+    jsonl = make_jsonl_transcript(tmp_path, [
+        ("user", big_text),
+        ("assistant", big_text),
+    ])
+    payload = {
+        "session_id": "trunc-test",
+        "cwd": "/test/projects/foo",
+        "transcript_path": str(jsonl),
+        "hook_event_name": "SessionEnd",
+    }
+    result = run_hook(vault, payload, tmp_path)
+    body = list_captured(vault)[0].read_text()
+    assert "middle truncated" in body

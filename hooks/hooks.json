@@ -2,7 +2,6 @@
   "hooks": {
     "SessionEnd": [
       {
-        "matcher": "*",
         "hooks": [
           {
             "type": "command",
