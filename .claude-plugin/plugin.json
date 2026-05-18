@@ -1,0 +1,13 @@
+{
+  "name": "llm-wiki",
+  "description": "Memex realized with LLMs — a personal wiki the model maintains. Inspired by Karpathy's LLM wiki pattern.",
+  "version": "0.1.0",
+  "author": {
+    "name": "sumin",
+    "email": "pajireg@naver.com"
+  },
+  "homepage": "https://github.com/sumin/llm-wiki",
+  "repository": "https://github.com/sumin/llm-wiki",
+  "license": "MIT",
+  "keywords": ["wiki", "pkm", "llm", "knowledge-base", "claude-code"]
+}
