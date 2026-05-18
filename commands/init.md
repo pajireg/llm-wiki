@@ -2,7 +2,7 @@
 description: Bootstrap the current directory as an llm-wiki vault.
 ---
 
-# /wiki-init
+# /llm-wiki:init
 
 Use the `llm-wiki` skill from this plugin first (load operating principles).
 
@@ -69,9 +69,9 @@ Next steps (optional, recommended):
      - git init && git add . && git commit -m "init"
 
   3. Start using:
-     - /wiki-ingest sources/manual/<some-note>.md
-     - /wiki-ask "<your question>"
-     - /wiki-lint
+     - /llm-wiki:ingest sources/manual/<some-note>.md
+     - /llm-wiki:ask "<your question>"
+     - /llm-wiki:lint
 
 Session auto-capture is already active. Every Claude Code session will be saved to sources/claude-sessions/.
 ```

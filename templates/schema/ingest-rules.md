@@ -1,6 +1,6 @@
 # Ingest Rules
 
-Procedure the LLM follows on `/wiki-ingest`.
+Procedure the LLM follows on `/llm-wiki:ingest`.
 
 ## Steps (in order)
 

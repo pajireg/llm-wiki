@@ -3,7 +3,7 @@
 
 Reads JSON from stdin: {session_id, cwd, transcript_path, hook_event_name}
 Writes a source markdown file into <vault>/sources/claude-sessions/.
-Vault path is read from ~/.config/llm-wiki/vault-path (written by /wiki-init).
+Vault path is read from ~/.config/llm-wiki/vault-path (written by /llm-wiki:init).
 No-op if not configured or the vault is not initialized.
 """
 from __future__ import annotations
@@ -293,7 +293,7 @@ def transcript_from_jsonl(jsonl_path: pathlib.Path, max_chars: int = 80_000) -> 
 def main() -> int:
     vault = get_vault_path()
     if vault is None:
-        return 0  # No vault configured (i.e., /wiki-init was not run)
+        return 0  # No vault configured (i.e., /llm-wiki:init was not run)
 
     sessions_dir = vault / "sources" / "claude-sessions"
     if not sessions_dir.is_dir():

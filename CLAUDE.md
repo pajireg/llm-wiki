@@ -6,14 +6,14 @@ Repo: `pajireg/llm-wiki` (public). Author: sumin.
 
 ## What this plugin does
 
-- `/wiki-init` — bootstrap any directory as a vault
-- `/wiki-ingest` — synthesize sources into wiki pages
-- `/wiki-ask` — query the wiki with citations
-- `/wiki-lint` — 8 health checks (findings-only)
-- `/wiki-upgrade-schema` — diff/merge schema template changes
+- `/llm-wiki:init` — bootstrap any directory as a vault
+- `/llm-wiki:ingest` — synthesize sources into wiki pages
+- `/llm-wiki:ask` — query the wiki with citations
+- `/llm-wiki:lint` — 8 health checks (findings-only)
+- `/llm-wiki:upgrade-schema` — diff/merge schema template changes
 - `hooks/hooks.json` — auto-registers a SessionEnd hook that captures every Claude session
 
-A user's vault lives separately (private), e.g. `~/Vaults/<name>/`. This plugin repo is the public code; user vaults are content.
+A user's vault lives separately (private), in any directory of their choosing. This plugin repo is the public code; user vaults are content.
 
 ## Core design (do not change without reading the spec)
 
@@ -40,9 +40,9 @@ See `docs/superpowers/specs/2026-05-18-llm-wiki-design.md` and `docs/superpowers
 ```
 .claude-plugin/{plugin.json, marketplace.json}   # plugin + marketplace metadata
 commands/                                         # 5 slash commands (markdown)
-skills/llm-wiki/SKILL.md                          # loaded by every /wiki-* command
+skills/llm-wiki/SKILL.md                          # loaded by every /llm-wiki:* command
 hooks/{hooks.json, session-end-capture.sh, session-end-capture.py}
-templates/                                        # copied into vault by /wiki-init
+templates/                                        # copied into vault by /llm-wiki:init
   schema/                                         # 6-file constitution
   README.template.md, gitignore.template
 scripts/                                          # validate-schema.py, install-hook.sh
@@ -55,12 +55,12 @@ docs/superpowers/{specs, plans}/                  # design doc + implementation 
 - **`SessionEnd` hook stdin** has `transcript_path` (path to JSONL), NOT `transcript`. Read and parse the JSONL yourself.
 - **SessionEnd matcher** is ignored — don't set `matcher: "*"` in hooks.json.
 - **macOS system Python is 3.9** — use `from __future__ import annotations` to keep `X | None` syntax working.
-- **Plugin namespace** — slash commands invoke as `/llm-wiki:wiki-init` (not `/wiki-init`). The plugin name from `plugin.json` becomes the prefix.
+- **Plugin namespace** — slash commands invoke as `/llm-wiki:init`, `/llm-wiki:ingest`, etc. The plugin name from `plugin.json` is the mandatory prefix; command files in `commands/` use short names (no redundant `wiki-` prefix).
 - **Version bump** — bump in `.claude-plugin/plugin.json` AND `.claude-plugin/marketplace.json` together. Without bumping, `/plugin marketplace update` won't replace the cache.
 
 ## Vault auto-discovery
 
-After `/wiki-init`, the active vault's absolute path is recorded at `~/.config/llm-wiki/vault-path`. The SessionEnd hook reads this on every session end. No env vars, no settings.json edits — install → init → it works.
+After `/llm-wiki:init`, the active vault's absolute path is recorded at `~/.config/llm-wiki/vault-path`. The SessionEnd hook reads this on every session end. No env vars, no settings.json edits — install → init → it works.
 
 ## Namespace inference
 
@@ -101,7 +101,7 @@ See `.claude-plugin/plugin.json` for the latest. Version history is in git log (
 
 ## Open items (Phase 2+ work)
 
-- New `git_owner` discovery → interactive classification via `/wiki-lint` ("this owner is unmapped — work? tech?")
+- New `git_owner` discovery → interactive classification via `/llm-wiki:lint` ("this owner is unmapped — work? tech?")
 - `_index.md` stubs should be schema-excepted so they don't trip lint frontmatter checks
 - `<local-command-caveat>` noise filtering in transcript capture (currently preserved as command hint info)
 - Pre-built binary distribution if Rust rewrite is ever considered (probably not — Python 3.9 stdlib is fine for this scale)
@@ -110,4 +110,4 @@ See `.claude-plugin/plugin.json` for the latest. Version history is in git log (
 
 - Read the spec + plan in `docs/superpowers/` before changing schema, page types, or hook input/output contracts.
 - Don't change the version in `plugin.json` casually — every change requires a `marketplace.json` bump too.
-- The user vault lives elsewhere (e.g. `~/Vaults/<name>/`). Never reference user-specific paths here. The plugin must work regardless of vault location.
+- The user vault lives elsewhere, in any directory of their choosing. Never reference user-specific paths here. The plugin must work regardless of vault location.

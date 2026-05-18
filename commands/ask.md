@@ -2,7 +2,7 @@
 description: Ask a question, answered from the wiki with citations.
 ---
 
-# /wiki-ask <question>
+# /llm-wiki:ask <question>
 
 Use the `llm-wiki` skill from this plugin first.
 

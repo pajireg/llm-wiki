@@ -35,7 +35,7 @@ Original meta (in `sources/`). Read-only.
   - `source_type: claude_session | article | book | conversation | other`
   - `ingested_at: <ISO datetime>`
   - `url: "https://..."` (if applicable)
-  - `processed: false` (true after /wiki-ingest)
+  - `processed: false` (true after /llm-wiki:ingest)
   - `session_id`, `cwd` (claude_session only)
 
 ## `question`

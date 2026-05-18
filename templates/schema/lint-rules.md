@@ -1,6 +1,6 @@
 # Lint Rules
 
-8 checks performed by `/wiki-lint`. Output to `lint-reports/<YYYY-MM-DD>-lint.md`.
+8 checks performed by `/llm-wiki:lint`. Output to `lint-reports/<YYYY-MM-DD>-lint.md`.
 Findings only — no auto-fixes.
 
 ## Checks

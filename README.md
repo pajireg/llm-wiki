@@ -2,8 +2,7 @@
 
 > Memex realized with LLMs.
 
-A Claude Code plugin that turns your knowledge into a wiki the model maintains.
-Inspired by [Karpathy's LLM wiki pattern](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f).
+A Claude Code plugin that turns Claude sessions and manual notes into a personal wiki the model maintains. Inspired by [Karpathy's LLM wiki pattern](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f).
 
 ## Three layers (Karpathy)
 
@@ -18,42 +17,29 @@ Inspired by [Karpathy's LLM wiki pattern](https://gist.github.com/karpathy/442a6
 /plugin install llm-wiki@llm-wiki
 ```
 
-## Update
-
-```
-/plugin marketplace update llm-wiki
-```
-
-## Uninstall
-
-```
-/plugin marketplace remove llm-wiki
-```
-
-Removing the marketplace also uninstalls the plugin. Your vault files are not touched.
-
 ## Bootstrap a vault
 
+Pick any directory as your vault — there is no required location. For example:
+
 ```bash
-mkdir -p ~/Vaults/<your-wiki>
-cd ~/Vaults/<your-wiki>
+mkdir -p ~/my-wiki && cd ~/my-wiki
 claude
-> /wiki-init
+> /llm-wiki:init
 ```
 
-`/wiki-init` creates the directory structure, copies the schema templates, and prints next-step guidance.
+`/llm-wiki:init` creates the directory structure, copies the schema templates, and registers the vault for session auto-capture. No env vars, no settings.json edits.
 
-Session auto-capture activates automatically after `/wiki-init`. No env vars or settings.json edits needed.
+After init, every Claude session you run anywhere on your machine is auto-saved into `<vault>/sources/claude-sessions/`.
 
 ## Commands
 
 | Command | What it does |
 |---|---|
-| `/wiki-init` | Bootstrap current dir as a vault |
-| `/wiki-ingest [path \| --recent]` | Synthesize sources into the wiki |
-| `/wiki-ask <question>` | Answer from the wiki with citations |
-| `/wiki-lint` | Run 8 health checks; write report |
-| `/wiki-upgrade-schema` | Diff and merge updated schema templates |
+| `/llm-wiki:init` | Bootstrap current dir as a vault |
+| `/llm-wiki:ingest [path \| --recent]` | Synthesize sources into the wiki |
+| `/llm-wiki:ask <question>` | Answer from the wiki with citations |
+| `/llm-wiki:lint` | Run 8 health checks; write report |
+| `/llm-wiki:upgrade-schema` | Diff and merge updated schema templates |
 
 ## Page types
 
@@ -81,6 +67,20 @@ Phase 4 (when graph analysis):   Neo4j or vector DB
 ```
 
 Markdown + frontmatter remains the source of truth. All higher-phase indexes are derived.
+
+## Update
+
+```
+/plugin marketplace update llm-wiki
+```
+
+## Uninstall
+
+```
+/plugin marketplace remove llm-wiki
+```
+
+Removing the marketplace also uninstalls the plugin. Your vault files are not touched.
 
 ## License
 
