@@ -34,6 +34,7 @@ Copy plugin templates into vault:
 - Copy every file in `<plugin>/templates/schema/` → `<vault>/schema/`
 - Copy `<plugin>/templates/README.template.md` → `<vault>/README.md`, replacing `{{VAULT_NAME}}` with the cwd basename.
 - Copy `<plugin>/templates/gitignore.template` → `<vault>/.gitignore`
+- Copy `<plugin>/templates/manual/welcome.md` → `<vault>/sources/manual/welcome.md` (the onboarding source; user will ingest this first to experience the curation loop).
 
 Add `_index.md` stubs:
 
@@ -60,18 +61,14 @@ Print:
 ```
 Vault initialized at <cwd>.
 
-Next steps (optional, recommended):
+▶ 먼저 이걸 해보세요:
+    /llm-wiki:ingest sources/manual/welcome.md
 
-  1. Customize schema:
-     - Edit schema/namespaces.md to fill in your cwd→namespace mapping.
+  (이 welcome 문서가 첫 위키 페이지로 합성되며 ingest 흐름을 체험할 수 있습니다.)
 
-  2. Track with git (optional):
-     - git init && git add . && git commit -m "init"
-
-  3. Start using:
-     - /llm-wiki:ingest sources/manual/<some-note>.md
-     - /llm-wiki:ask "<your question>"
-     - /llm-wiki:lint
+Optional:
+  - schema/namespaces.md 편집 — git owner/cwd → namespace 매핑 추가
+  - git init && git add . && git commit -m "init"
 
 Session auto-capture is already active. Every Claude Code session will be saved to sources/claude-sessions/.
 ```
