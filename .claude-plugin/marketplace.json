@@ -1,0 +1,21 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "llm-wiki",
+  "owner": {
+    "name": "sumin",
+    "email": "pajireg@naver.com"
+  },
+  "metadata": {
+    "description": "Memex realized with LLMs — a personal wiki the model maintains. Inspired by Karpathy's LLM wiki pattern.",
+    "version": "0.1.0"
+  },
+  "plugins": [
+    {
+      "name": "llm-wiki",
+      "source": "./",
+      "description": "Synthesize Claude sessions and notes into a self-maintaining personal wiki. Provides /wiki-init, /wiki-ingest, /wiki-ask, /wiki-lint, /wiki-upgrade-schema commands plus a SessionEnd hook for automatic capture.",
+      "category": "productivity",
+      "tags": ["wiki", "pkm", "knowledge-base", "llm", "memex"]
+    }
+  ]
+}
