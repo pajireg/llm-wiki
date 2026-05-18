@@ -31,7 +31,7 @@ The SessionEnd hook determines a source's namespace from the session's working d
 2. **`cwd_to_namespace`** — fallback: match cwd against path patterns
 3. **`default`** — final fallback
 
-The mapping starts empty. As you use the wiki, frontmatter records the `git_owner` so unmapped owners can be classified later (by `/wiki-lint` or manual edit).
+The mapping starts empty. As you use the wiki, frontmatter records the `git_owner` so unmapped owners can be classified later (by `/llm-wiki:lint` or manual edit).
 
 ### `git_owner_to_namespace`
 

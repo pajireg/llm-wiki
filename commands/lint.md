@@ -2,7 +2,7 @@
 description: Run 8 health checks on the wiki. Findings-only, no auto-fixes.
 ---
 
-# /wiki-lint
+# /llm-wiki:lint
 
 Use the `llm-wiki` skill from this plugin first.
 Follow `schema/lint-rules.md` precisely.

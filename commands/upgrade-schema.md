@@ -2,7 +2,7 @@
 description: Compare plugin's schema templates with vault's schema and selectively merge.
 ---
 
-# /wiki-upgrade-schema
+# /llm-wiki:upgrade-schema
 
 Use the `llm-wiki` skill from this plugin first.
 

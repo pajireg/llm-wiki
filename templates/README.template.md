@@ -11,9 +11,9 @@ A personal LLM-maintained wiki built with [llm-wiki](https://github.com/pajireg/
 
 ## Common commands
 
-- `/wiki-ingest <source>` — synthesize a source into the wiki
-- `/wiki-ask <question>` — query the wiki
-- `/wiki-lint` — run the 8 health checks
+- `/llm-wiki:ingest <source>` — synthesize a source into the wiki
+- `/llm-wiki:ask <question>` — query the wiki
+- `/llm-wiki:lint` — run the 8 health checks
 
 ## Git (optional)
 

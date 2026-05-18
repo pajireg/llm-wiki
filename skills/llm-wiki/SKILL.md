@@ -1,11 +1,11 @@
 ---
 name: llm-wiki
-description: Operating principles and checklists for maintaining an LLM-curated wiki. Loaded by all /wiki-* commands.
+description: Operating principles and checklists for maintaining an LLM-curated wiki. Loaded by all /llm-wiki:* commands.
 ---
 
 # llm-wiki: Operating Principles
 
-Use this skill when invoked from `/wiki-init`, `/wiki-ingest`, `/wiki-ask`, `/wiki-lint`, or `/wiki-upgrade-schema`.
+Use this skill when invoked from `/llm-wiki:init`, `/llm-wiki:ingest`, `/llm-wiki:ask`, `/llm-wiki:lint`, or `/llm-wiki:upgrade-schema`.
 
 ## Always load first
 
@@ -18,12 +18,12 @@ Before any wiki action, read these from the current vault:
 5. `schema/ingest-rules.md`
 6. `schema/lint-rules.md`
 
-If any are missing, abort and tell the user to run `/wiki-init`.
+If any are missing, abort and tell the user to run `/llm-wiki:init`.
 
 ## Hard invariants (NEVER violate)
 
 1. Never modify files under `sources/`.
-2. Never modify files under `schema/` unless this is `/wiki-upgrade-schema` and the user explicitly approved a specific diff.
+2. Never modify files under `schema/` unless this is `/llm-wiki:upgrade-schema` and the user explicitly approved a specific diff.
 3. Every new wiki page MUST have non-empty `sources:` frontmatter.
 4. Every page MUST have valid `type` and `namespace` per schema.
 5. When making changes, preserve existing `sources:` and relation entries — append, never replace.

@@ -2,7 +2,7 @@
 description: Synthesize a source (or batch of recent sources) into the wiki.
 ---
 
-# /wiki-ingest [source-path | --recent <duration>]
+# /llm-wiki:ingest [source-path | --recent <duration>]
 
 Use the `llm-wiki` skill from this plugin first (load schema and invariants).
 
@@ -68,7 +68,7 @@ Questions raised:
 
 - Source file not found → error, abort.
 - Source frontmatter invalid (missing `type` or `namespace`) → error, ask user to fix source.
-- Schema missing/invalid → ask user to run `/wiki-init` or fix schema.
+- Schema missing/invalid → ask user to run `/llm-wiki:init` or fix schema.
 
 ## Forbidden
 
