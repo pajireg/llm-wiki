@@ -55,6 +55,7 @@ docs/superpowers/{specs, plans}/                  # design doc + implementation 
 
 - **`SessionEnd` hook stdin** has `transcript_path` (path to JSONL), NOT `transcript`. Read and parse the JSONL yourself.
 - **SessionEnd matcher** is ignored — don't set `matcher: "*"` in hooks.json.
+- **Hook diagnostic log** — every hook invocation appends one line to `~/.cache/llm-wiki/hook.log` (timestamp, payload keys, result/skip reason). Useful when a session doesn't capture as expected, especially for non-standard launchers like `claude agents`.
 - **macOS system Python is 3.9** — use `from __future__ import annotations` to keep `X | None` syntax working.
 - **Plugin namespace** — slash commands invoke as `/llm-wiki:init`, `/llm-wiki:ingest`, etc. The plugin name from `plugin.json` is the mandatory prefix; command files in `commands/` use short names (no redundant `wiki-` prefix).
 - **Version bump** — bump in `.claude-plugin/plugin.json` AND `.claude-plugin/marketplace.json` together. Without bumping, `/plugin marketplace update` won't replace the cache.
