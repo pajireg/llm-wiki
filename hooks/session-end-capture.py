@@ -290,19 +290,47 @@ def transcript_from_jsonl(jsonl_path: pathlib.Path, max_chars: int = 80_000) -> 
     return md
 
 
+def log_invocation(payload_keys: list[str], result: str) -> None:
+    """Append a one-line diagnostic record to ~/.cache/llm-wiki/hook.log.
+
+    Never raises — logging failure must not break the hook itself.
+    """
+    try:
+        log_dir = pathlib.Path.home() / ".cache" / "llm-wiki"
+        log_dir.mkdir(parents=True, exist_ok=True)
+        ts = datetime.datetime.now().isoformat(timespec="seconds")
+        keys_str = ",".join(payload_keys) if payload_keys else "<none>"
+        line = f"{ts} keys=[{keys_str}] → {result}\n"
+        with (log_dir / "hook.log").open("a", encoding="utf-8") as f:
+            f.write(line)
+    except OSError:
+        pass
+
+
 def main() -> int:
+    # Read stdin first so we can log payload shape on every code path
+    raw = sys.stdin.read()
+    payload: dict = {}
+    if raw:
+        try:
+            parsed = json.loads(raw)
+            if isinstance(parsed, dict):
+                payload = parsed
+        except (json.JSONDecodeError, ValueError):
+            log_invocation([], f"skip:malformed-json size={len(raw)}")
+            return 0
+
+    payload_keys = sorted(payload.keys())
+
     vault = get_vault_path()
     if vault is None:
-        return 0  # No vault configured (i.e., /llm-wiki:init was not run)
+        log_invocation(payload_keys, "skip:no-vault-configured")
+        return 0
 
     sessions_dir = vault / "sources" / "claude-sessions"
     if not sessions_dir.is_dir():
-        return 0  # Vault structure incomplete
-
-    try:
-        payload = json.load(sys.stdin)
-    except (json.JSONDecodeError, ValueError):
-        return 0  # Malformed input, fail silently
+        log_invocation(payload_keys, f"skip:no-sessions-dir vault={vault}")
+        return 0
 
     session_id = payload.get("session_id", "unknown")
     cwd = payload.get("cwd", "")
@@ -317,7 +345,11 @@ def main() -> int:
         transcript = payload.get("transcript", "")
 
     if len(transcript.strip()) < 50:
-        return 0  # Trivial session, skip
+        log_invocation(
+            payload_keys,
+            f"skip:trivial-transcript len={len(transcript.strip())} transcript_path={transcript_path or '<none>'}",
+        )
+        return 0
 
     # Extract git info from cwd
     git_remote, git_owner = get_git_info(cwd)
@@ -359,6 +391,11 @@ cwd: {yaml_quote(cwd)}
 
     out_path = sessions_dir / filename
     out_path.write_text(content)
+    try:
+        rel = out_path.relative_to(vault)
+    except ValueError:
+        rel = out_path
+    log_invocation(payload_keys, f"wrote:{rel} ns={namespace} transcript_len={len(transcript)}")
     return 0
 
 
