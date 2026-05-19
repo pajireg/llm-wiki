@@ -290,7 +290,7 @@ def transcript_from_jsonl(jsonl_path: pathlib.Path, max_chars: int = 80_000) -> 
     return md
 
 
-def log_invocation(payload_keys: list[str], result: str) -> None:
+def log_invocation(payload: dict, result: str, transcript_stat: str = "") -> None:
     """Append a one-line diagnostic record to ~/.cache/llm-wiki/hook.log.
 
     Never raises — logging failure must not break the hook itself.
@@ -299,12 +299,58 @@ def log_invocation(payload_keys: list[str], result: str) -> None:
         log_dir = pathlib.Path.home() / ".cache" / "llm-wiki"
         log_dir.mkdir(parents=True, exist_ok=True)
         ts = datetime.datetime.now().isoformat(timespec="seconds")
-        keys_str = ",".join(payload_keys) if payload_keys else "<none>"
-        line = f"{ts} keys=[{keys_str}] → {result}\n"
+        keys = sorted(payload.keys()) if isinstance(payload, dict) else []
+        keys_str = ",".join(keys) if keys else "<none>"
+        event = payload.get("hook_event_name", "?") if isinstance(payload, dict) else "?"
+        reason = payload.get("reason", "?") if isinstance(payload, dict) else "?"
+        agent_type = payload.get("agent_type", "-") if isinstance(payload, dict) else "-"
+        source = payload.get("source", "-") if isinstance(payload, dict) else "-"
+        sid_raw = payload.get("session_id", "") if isinstance(payload, dict) else ""
+        sid = sid_raw[:8] if isinstance(sid_raw, str) else "?"
+        fields = (
+            f"event={event} reason={reason} source={source} agent_type={agent_type} sid={sid} "
+            f"keys=[{keys_str}]"
+        )
+        if transcript_stat:
+            fields += f" {transcript_stat}"
         with (log_dir / "hook.log").open("a", encoding="utf-8") as f:
-            f.write(line)
+            f.write(f"{ts} {fields} → {result}\n")
     except OSError:
         pass
+
+
+def stat_transcript(path_str: str) -> str:
+    """Return a one-token summary of the transcript file at path_str.
+
+    Format: file=missing | file=size=<N>,lines=<L>,types=<t1:n1+t2:n2>,mtime=<iso>
+    Safe on any path — never raises.
+    """
+    if not path_str:
+        return "file=none"
+    try:
+        p = pathlib.Path(path_str)
+        if not p.is_file():
+            return "file=missing"
+        size = p.stat().st_size
+        mtime = datetime.datetime.fromtimestamp(p.stat().st_mtime).isoformat(timespec="seconds")
+        lines = 0
+        type_counts: dict[str, int] = {}
+        with p.open(encoding="utf-8") as f:
+            for line in f:
+                if not line.strip():
+                    continue
+                lines += 1
+                try:
+                    obj = json.loads(line)
+                except (json.JSONDecodeError, ValueError):
+                    continue
+                if isinstance(obj, dict):
+                    t = obj.get("type", "?")
+                    type_counts[t] = type_counts.get(t, 0) + 1
+        types_str = "+".join(f"{k}:{v}" for k, v in sorted(type_counts.items())) or "none"
+        return f"file=size={size},lines={lines},types={types_str},mtime={mtime}"
+    except OSError:
+        return "file=stat-error"
 
 
 def main() -> int:
@@ -317,19 +363,17 @@ def main() -> int:
             if isinstance(parsed, dict):
                 payload = parsed
         except (json.JSONDecodeError, ValueError):
-            log_invocation([], f"skip:malformed-json size={len(raw)}")
+            log_invocation({}, f"skip:malformed-json size={len(raw)}")
             return 0
-
-    payload_keys = sorted(payload.keys())
 
     vault = get_vault_path()
     if vault is None:
-        log_invocation(payload_keys, "skip:no-vault-configured")
+        log_invocation(payload, "skip:no-vault-configured")
         return 0
 
     sessions_dir = vault / "sources" / "claude-sessions"
     if not sessions_dir.is_dir():
-        log_invocation(payload_keys, f"skip:no-sessions-dir vault={vault}")
+        log_invocation(payload, f"skip:no-sessions-dir vault={vault}")
         return 0
 
     session_id = payload.get("session_id", "unknown")
@@ -346,8 +390,9 @@ def main() -> int:
 
     if len(transcript.strip()) < 50:
         log_invocation(
-            payload_keys,
-            f"skip:trivial-transcript len={len(transcript.strip())} transcript_path={transcript_path or '<none>'}",
+            payload,
+            f"skip:trivial-transcript transcript_len={len(transcript.strip())}",
+            transcript_stat=stat_transcript(transcript_path),
         )
         return 0
 
@@ -395,7 +440,7 @@ cwd: {yaml_quote(cwd)}
         rel = out_path.relative_to(vault)
     except ValueError:
         rel = out_path
-    log_invocation(payload_keys, f"wrote:{rel} ns={namespace} transcript_len={len(transcript)}")
+    log_invocation(payload, f"wrote:{rel} ns={namespace} transcript_len={len(transcript)}")
     return 0
 
 

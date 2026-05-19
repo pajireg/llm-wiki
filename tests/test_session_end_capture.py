@@ -42,8 +42,13 @@ def run_hook(vault: Path, payload: dict, tmp_path: Path = None, configure_vault:
     env = os.environ.copy()
     # Strip any inherited LLM_WIKI_VAULT to ensure tests don't accidentally use it
     env.pop("LLM_WIKI_VAULT", None)
-    if configure_vault and tmp_path is not None:
-        fake_home = write_vault_config(tmp_path, vault)
+    # Always isolate HOME so the hook never reads the developer's real ~/.config/llm-wiki
+    if tmp_path is not None:
+        if configure_vault:
+            fake_home = write_vault_config(tmp_path, vault)
+        else:
+            fake_home = tmp_path / "home"
+            fake_home.mkdir(exist_ok=True)
         env["HOME"] = str(fake_home)
     return subprocess.run(
         [sys.executable, str(HOOK_SCRIPT)],
