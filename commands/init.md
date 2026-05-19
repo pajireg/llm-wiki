@@ -39,7 +39,6 @@ Inspect the current working directory and pick exactly one branch:
    ```
    sources/claude-sessions/
    sources/manual/
-   sources/conversations/
    wiki/personal/
    wiki/work/
    wiki/tech/
@@ -80,10 +79,10 @@ Inspect the current working directory and pick exactly one branch:
    Vault initialized at <cwd>.
 
    ▶ Try this first:
-       /llm-wiki:ingest sources/manual/welcome.md
+       /llm-wiki:ingest
 
-     (The welcome doc will be synthesized into your first wiki pages so
-      you can see the ingest loop end-to-end.)
+     (With no args, ingest processes every unprocessed source. On a fresh
+      vault that's just the welcome doc — a one-command tour of the loop.)
 
    Optional:
      - Edit schema/namespaces.md to add your git_owner / cwd → namespace mappings.

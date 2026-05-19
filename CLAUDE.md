@@ -20,7 +20,7 @@ A user's vault lives separately (private), in any directory of their choosing. T
 See `docs/superpowers/specs/2026-05-18-llm-wiki-design.md` and `docs/superpowers/plans/2026-05-18-llm-wiki.md` for full rationale.
 
 **Three layers (Karpathy)**:
-- `sources/` — immutable originals (claude-sessions/manual/conversations)
+- `sources/` — immutable originals (claude-sessions/manual)
 - `wiki/<namespace>/` — synthesized pages
 - `schema/` — rules the LLM loads every command (user owns these)
 

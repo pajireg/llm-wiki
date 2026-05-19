@@ -10,10 +10,10 @@ processed: false
 This note is the first source bootstrapped into your vault. Ingest it to experience your first synthesis:
 
 ```
-/llm-wiki:ingest sources/manual/welcome.md
+/llm-wiki:ingest
 ```
 
-When ingest finishes, `wiki/personal/` will contain pages synthesized from this document. Then ask the wiki something like `/llm-wiki:ask "what is the curation loop"` and watch the answer come back from your own wiki with citations.
+With no arguments, ingest processes every unprocessed source. On a fresh vault that's just this welcome doc. When ingest finishes, `wiki/personal/` will contain pages synthesized from this document. Then ask the wiki something like `/llm-wiki:ask "what is the curation loop"` and watch the answer come back from your own wiki with citations.
 
 ## The curation loop
 
