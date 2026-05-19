@@ -1,80 +1,99 @@
 ---
-description: Bootstrap the current directory as an llm-wiki vault.
+description: Bootstrap the current directory as an llm-wiki vault (or register a cloned vault as the active one).
 ---
 
 # /llm-wiki:init
 
 Use the `llm-wiki` skill from this plugin first (load operating principles).
 
-## Pre-flight
+## Pre-flight: classify the cwd
 
-1. Check cwd is empty or only contains `.git/`, `.obsidian/`, `.claude/`.
-   - If it contains other files, abort: "Directory is not empty. Choose an empty directory or move existing files first."
-2. Confirm with the user: "Initialize current directory `<cwd>` as a vault?"
+Inspect the current working directory and pick exactly one branch:
 
-## Bootstrap
+- **Existing vault** — cwd contains all three: `schema/`, `sources/`, `wiki/` directories. Treat as a cloned or pre-existing vault. Go to **Register**.
+- **Empty** — cwd is empty or contains only `.git/`, `.obsidian/`, `.claude/`. Go to **Bootstrap**.
+- **Non-empty, non-vault** — anything else. Abort: "Directory is not empty and is not an existing vault (missing one of: schema/, sources/, wiki/). Choose an empty directory, move existing files first, or restore the missing vault subdirectories."
 
-Create directory structure (use mkdir -p):
+## Register (existing vault)
 
-```
-sources/claude-sessions/
-sources/manual/
-sources/conversations/
-wiki/personal/
-wiki/work/
-wiki/tech/
-wiki/projects/
-wiki/people/
-lint-reports/
-schema/   (populated by copy below)
-```
+1. Run `python3 <plugin>/scripts/validate-schema.py <vault>/schema/` to verify the vault's schema is intact. If non-zero, report which files are missing and offer to copy from `<plugin>/templates/schema/` to repair.
+2. Confirm with the user: "Register existing vault at `<cwd>` as the active vault? (This switches session auto-capture to write here.)"
+3. On yes:
+   - Create `~/.config/llm-wiki/` directory if not exists.
+   - Write the vault's absolute path to `~/.config/llm-wiki/vault-path`.
+4. Print:
+   ```
+   Registered existing vault at <cwd>.
+   Session auto-capture now targets this vault.
 
-Copy plugin templates into vault:
+   Previous vault-path (if any) is overwritten. Sources already in this vault are preserved.
+   ```
+5. Done. Do NOT run the Bootstrap steps.
 
-- Copy every file in `<plugin>/templates/schema/` → `<vault>/schema/`
-- Copy `<plugin>/templates/README.template.md` → `<vault>/README.md`, replacing `{{VAULT_NAME}}` with the cwd basename.
-- Copy `<plugin>/templates/gitignore.template` → `<vault>/.gitignore`
-- Copy `<plugin>/templates/manual/welcome.md` → `<vault>/sources/manual/welcome.md` (the onboarding source; user will ingest this first to experience the curation loop).
+## Bootstrap (empty directory)
 
-Add `_index.md` stubs:
+1. Confirm with the user: "Initialize current directory `<cwd>` as a new vault?"
 
-- `<vault>/sources/_index.md` — heading only: `# Sources`
-- `<vault>/wiki/_index.md` — heading only: `# Wiki`
+2. Create directory structure (use mkdir -p):
 
-Run validate-schema.py to verify schema/ was copied correctly:
+   ```
+   sources/claude-sessions/
+   sources/manual/
+   wiki/personal/
+   wiki/work/
+   wiki/tech/
+   wiki/projects/
+   wiki/people/
+   lint-reports/
+   schema/   (populated by copy below)
+   ```
 
-```bash
-python3 <plugin>/scripts/validate-schema.py <vault>/schema/
-```
+3. Copy plugin templates into vault:
 
-If exit code is non-zero, abort and report the issue.
+   - Copy every file in `<plugin>/templates/schema/` → `<vault>/schema/`
+   - Copy `<plugin>/templates/README.template.md` → `<vault>/README.md`, replacing `{{VAULT_NAME}}` with the cwd basename.
+   - Copy `<plugin>/templates/gitignore.template` → `<vault>/.gitignore`
+   - Copy `<plugin>/templates/manual/welcome.md` → `<vault>/sources/manual/welcome.md` (the onboarding source; user will ingest this first to experience the curation loop).
 
-Record vault path for session auto-capture:
+4. Add `_index.md` stubs:
 
-- Create `~/.config/llm-wiki/` directory if not exists.
-- Write the vault's absolute path to `~/.config/llm-wiki/vault-path`.
+   - `<vault>/sources/_index.md` — heading only: `# Sources`
+   - `<vault>/wiki/_index.md` — heading only: `# Wiki`
 
-## Post-bootstrap output
+5. Run validate-schema.py:
 
-Print:
+   ```bash
+   python3 <plugin>/scripts/validate-schema.py <vault>/schema/
+   ```
 
-```
-Vault initialized at <cwd>.
+   If exit code is non-zero, abort and report the issue.
 
-▶ 먼저 이걸 해보세요:
-    /llm-wiki:ingest sources/manual/welcome.md
+6. Record vault path for session auto-capture:
 
-  (이 welcome 문서가 첫 위키 페이지로 합성되며 ingest 흐름을 체험할 수 있습니다.)
+   - Create `~/.config/llm-wiki/` directory if not exists.
+   - Write the vault's absolute path to `~/.config/llm-wiki/vault-path`.
 
-Optional:
-  - schema/namespaces.md 편집 — git owner/cwd → namespace 매핑 추가
-  - git init && git add . && git commit -m "init"
+7. Print:
 
-Session auto-capture is already active. Every Claude Code session will be saved to sources/claude-sessions/.
-```
+   ```
+   Vault initialized at <cwd>.
+
+   ▶ Try this first:
+       /llm-wiki:ingest
+
+     (With no args, ingest processes every unprocessed source. On a fresh
+      vault that's just the welcome doc — a one-command tour of the loop.)
+
+   Optional:
+     - Edit schema/namespaces.md to add your git_owner / cwd → namespace mappings.
+     - git init && git add . && git commit -m "init"
+
+   Session auto-capture is already active. Every Claude Code session will be saved to sources/claude-sessions/.
+   ```
 
 ## Do not
 
-- Initialize a non-empty directory (unless only `.git`, `.obsidian`, `.claude` exist).
+- Bootstrap a non-empty directory that isn't an existing vault.
 - Touch existing `.git/`, `.obsidian/`, `.claude/`.
 - Run `git init` automatically — user's choice.
+- Modify any file inside an existing vault during Register (only write `~/.config/llm-wiki/vault-path`).
