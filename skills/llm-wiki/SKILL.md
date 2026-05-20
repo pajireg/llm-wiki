@@ -39,7 +39,13 @@ If the vault is not a git repo: skip silently. No warnings.
 
 ## Working directory rule
 
-All wiki operations run with the vault directory as cwd. If the cwd doesn't look like a vault (missing `schema/`, `sources/`, `wiki/`), abort and ask the user to `cd` to the vault.
+All wiki operations run with the vault directory as cwd. Resolve the vault in this order:
+
+1. **If cwd is a vault** (has `schema/`, `sources/`, `wiki/`) — use it as-is.
+2. **Else, fall back to the registered vault** — read `~/.config/llm-wiki/vault-path`. If the file exists and points to a directory that looks like a vault, `cd` into it and continue. Tell the user once: `Using registered vault at <path>.`
+3. **Else** — abort. Ask the user to run `/llm-wiki:init` (no vault registered) or `cd` to an existing vault.
+
+This matches the SessionEnd hook: once `/llm-wiki:init` registers a vault, every `/llm-wiki:*` command works from anywhere.
 
 ## Output discipline
 
