@@ -38,8 +38,20 @@ After init, every Claude session you run anywhere on your machine is auto-saved 
 | `/llm-wiki:init` | Bootstrap current dir as a vault |
 | `/llm-wiki:ingest [path \| --recent]` | Synthesize sources into the wiki |
 | `/llm-wiki:ask <question>` | Answer from the wiki with citations |
-| `/llm-wiki:lint` | Run 8 health checks; write report |
+| `/llm-wiki:lint` | Run 9 health checks; write report |
 | `/llm-wiki:upgrade-schema` | Diff and merge updated schema templates |
+
+## Auto-injection (v0.6.0+)
+
+After init, every Claude prompt — anywhere on your machine — silently searches your vault and injects the most relevant page summaries as context. You don't need `/llm-wiki:ask` to benefit from the wiki; Claude has it.
+
+- Search runs against a local SQLite FTS5 index at `<vault>/.llm-wiki/index.db` (built by `/llm-wiki:ingest`, git-ignored).
+- The current directory's namespace is preferred; falls back to the whole vault if no match.
+- Top 5 page summaries are injected (~500 tokens, capped).
+
+**Opt-out**:
+- `touch <vault>/.llm-wiki/disabled` — disable for the whole vault
+- `LLM_WIKI_AUTO_INJECT=0 claude` — disable for one session
 
 ## Page types
 
@@ -49,13 +61,14 @@ After init, every Claude session you run anywhere on your machine is auto-saved 
 
 5 typed relations — `related`, `part_of`, `contradicts`, `supersedes`, `derived_from`. See `templates/schema/relations.md`.
 
-## Hard invariants (day-1)
+## Hard invariants
 
 1. Sources are immutable.
 2. Every wiki page has non-empty `sources:`.
-3. Frontmatter is the source of truth.
-4. Schema is user-owned; the plugin never auto-overwrites it.
-5. Git auto-commit only if the vault is a git repo.
+3. Every wiki page (except `source` type) has a non-empty `summary:` field.
+4. Frontmatter is the source of truth.
+5. Schema is user-owned; the plugin never auto-overwrites it.
+6. Git auto-commit only if the vault is a git repo.
 
 ## Evolution path
 
