@@ -1,6 +1,6 @@
 # Lint Rules
 
-8 checks performed by `/llm-wiki:lint`. Output to `lint-reports/<YYYY-MM-DD>-lint.md`.
+9 checks performed by `/llm-wiki:lint`. Output to `lint-reports/<YYYY-MM-DD>-lint.md`.
 Findings only — no auto-fixes.
 
 ## Checks
@@ -35,6 +35,11 @@ Findings only — no auto-fixes.
 
 8. **Missing sources**
    wiki pages (any type except `source`) with empty `sources:`.
+
+9. **Missing summary**
+   wiki pages (any type except `source`) with empty or missing `summary:` frontmatter.
+   The auto-context-injection hook relies on summary for previews; missing summary
+   forces body-prefix fallback which is less accurate.
 
 ## Report format
 

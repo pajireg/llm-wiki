@@ -35,11 +35,20 @@ For each target source:
    - **Create new**: full frontmatter per `page-types.md`. Filename per type. Non-empty `sources:` with this source.
    - **Relations**: when this change connects two pages meaningfully, add `related:` (or other appropriate relation) on both sides.
    - **Contradictions**: if new info contradicts existing claim, add `contradicts:` on both sides AND leave the older claim with a body marker (do not delete).
+   - **`summary` field**: every created/updated page must have a 1-2 sentence `summary` (~200 chars max) in its frontmatter. Rewrite when the page's focus shifted; leave alone otherwise.
 
 5. **Mark source processed**:
    - Update source frontmatter: `processed: true`, `updated: <today>`.
 
-6. **Commit (if git)**: see `llm-wiki` skill section on commit behavior.
+6. **Update search index**:
+   - For each touched page run, from the vault root:
+     ```
+     python3 ${CLAUDE_PLUGIN_ROOT}/scripts/rebuild-index.py "$PWD" --upsert <path>
+     ```
+   - Or, after a large batch: `python3 .../rebuild-index.py "$PWD"` for a full rebuild.
+   - The index DB at `.llm-wiki/index.db` is what the auto-context-injection hook reads.
+
+7. **Commit (if git)**: see `llm-wiki` skill section on commit behavior.
 
 ## Report
 

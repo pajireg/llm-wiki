@@ -3,3 +3,6 @@
 .obsidian/workspace-mobile.json
 *.swp
 .trash/
+
+# llm-wiki search index (derived artifact, rebuilt by hook/ingest)
+.llm-wiki/

@@ -20,9 +20,15 @@ Procedure the LLM follows on `/llm-wiki:ingest`.
    - All touched pages get `sources: [[<this-source>]]` appended (deduplicated).
    - Significant connections → frontmatter relations, not just body wikilinks.
    - Detected contradiction → add `contradicts:` on both sides.
-6. **Mark source** — set `processed: true`, update `updated:`.
-7. **Commit** (if vault is git repo) — meaningful message: `wiki: ingest <source-name>`.
-8. **Report** — list touched pages with one-line change summary.
+6. **Refresh `summary`** on every touched page (1-2 sentences, ~200 chars). Required
+   for the auto-context-injection hook to give useful previews. Rewrite when the
+   page's center of gravity shifted, otherwise leave alone.
+7. **Mark source** — set `processed: true`, update `updated:`.
+8. **Update search index** — for each touched page, run
+   `scripts/rebuild-index.py <vault> --upsert <path>` (or full rebuild after
+   bulk ingest). The DB lives at `<vault>/.llm-wiki/index.db` and is git-ignored.
+9. **Commit** (if vault is git repo) — meaningful message: `wiki: ingest <source-name>`.
+10. **Report** — list touched pages with one-line change summary.
 
 ## Page creation rules
 

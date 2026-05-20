@@ -27,6 +27,16 @@ If any are missing, abort and tell the user to run `/llm-wiki:init`.
 3. Every new wiki page MUST have non-empty `sources:` frontmatter.
 4. Every page MUST have valid `type` and `namespace` per schema.
 5. When making changes, preserve existing `sources:` and relation entries — append, never replace.
+6. Every wiki page (excluding `source` type) MUST have a `summary` field — 1-2 sentences (~200 chars max). This is what the auto-injection hook surfaces.
+
+## Search index
+
+The vault keeps a SQLite FTS5 search index at `.llm-wiki/index.db` (git-ignored, derived from .md files). The auto-context-injection hook queries it on every user prompt.
+
+- Ingest must keep the index in sync: after touching pages, call
+  `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/rebuild-index.py "<vault>" --upsert <path...>`.
+- For bulk operations or initial setup, run the same script without `--upsert` for a full rebuild.
+- The index can always be rebuilt from the .md files — losing it is harmless.
 
 ## Commit behavior
 
