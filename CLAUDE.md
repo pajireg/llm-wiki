@@ -43,8 +43,9 @@ See `docs/superpowers/specs/2026-05-18-llm-wiki-design.md` and `docs/superpowers
 commands/                                         # 5 slash commands (markdown)
 skills/llm-wiki/SKILL.md                          # loaded by every /llm-wiki:* command
 hooks/
-  hooks.json                                      # SessionEnd + SubagentStop registration
+  hooks.json                                      # SessionEnd + SubagentStop + UserPromptSubmit registration
   session-end-capture.{sh,py}                     # transcript → sources/claude-sessions/
+  user-prompt-inject.{sh,py}                      # per-prompt wiki context auto-injection (v0.6.0+)
   _wiki_common.py                                 # shared utils (vault-path, namespace, frontmatter)
 templates/                                        # copied into vault by /llm-wiki:init
   schema/                                         # 6-file constitution
@@ -75,7 +76,19 @@ Each vault has a SQLite FTS5 index at `<vault>/.llm-wiki/index.db` (git-ignored)
 - Updated by `scripts/rebuild-index.py <vault> --upsert <path...>` from `/llm-wiki:ingest`.
 - Self-healing: corrupt DB is wiped and rebuilt on next open.
 - Schema: `pages(id, path, namespace, type, title, summary, updated, mtime)` + FTS5 virtual table `pages_fts(id UNINDEXED, title, summary, body)` with `unicode61` tokenizer (handles Korean + English).
-- Powers the upcoming UserPromptSubmit auto-injection hook (v0.6.0).
+- Consumed by the UserPromptSubmit auto-injection hook (v0.6.0+).
+
+## Auto-injection hook (v0.6.0+)
+
+`hooks/user-prompt-inject.py` runs on every UserPromptSubmit:
+
+1. Reads `~/.config/llm-wiki/vault-path` — silent skip if absent.
+2. Checks `<vault>/.llm-wiki/disabled` and `$LLM_WIKI_AUTO_INJECT=0` (opt-out).
+3. Tokenizes the prompt → FTS5 OR query (alphanumeric + 한글, dedup, max 12 tokens).
+4. Searches namespace-filtered top-5; falls back to whole-vault top-5 if 0 matches.
+5. Prints a `<wiki_context>` block to stdout for Claude.
+
+**Hard invariant**: every error path exits 0 with empty stdout. The hook must never block the user's prompt. Diagnostics go to `~/.cache/llm-wiki/hook.log`.
 
 ## Namespace inference
 
