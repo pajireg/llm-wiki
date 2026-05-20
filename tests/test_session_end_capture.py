@@ -246,23 +246,22 @@ def test_namespace_git_owner_unmapped_falls_back_to_default(tmp_path):
 
 
 def test_parse_git_owner_handles_ssh_and_https():
-    """Unit test for parse_git_owner helper via import."""
-    import importlib.util
-    spec = importlib.util.spec_from_file_location(
-        "session_end_capture",
-        str(PLUGIN_ROOT / "hooks" / "session-end-capture.py"),
-    )
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+    """Unit test for parse_git_owner — lives in _wiki_common after v0.5.0 refactor."""
+    sys.path.insert(0, str(PLUGIN_ROOT / "hooks"))
+    try:
+        import _wiki_common
+    finally:
+        sys.path.pop(0)
 
-    assert mod.parse_git_owner("git@github.com:pajireg/llm-wiki.git") == "pajireg"
-    assert mod.parse_git_owner("git@github.com:acme-corp/repo") == "acme-corp"
-    assert mod.parse_git_owner("https://github.com/pajireg/llm-wiki.git") == "pajireg"
-    assert mod.parse_git_owner("https://github.com/pajireg/llm-wiki") == "pajireg"
-    assert mod.parse_git_owner("https://gitlab.example.com/team-a/repo.git") == "team-a"
-    assert mod.parse_git_owner("ssh://git@github.com/pajireg/llm-wiki.git") == "pajireg"
-    assert mod.parse_git_owner("") is None
-    assert mod.parse_git_owner("not-a-url") is None
+    parse_git_owner = _wiki_common.parse_git_owner
+    assert parse_git_owner("git@github.com:pajireg/llm-wiki.git") == "pajireg"
+    assert parse_git_owner("git@github.com:acme-corp/repo") == "acme-corp"
+    assert parse_git_owner("https://github.com/pajireg/llm-wiki.git") == "pajireg"
+    assert parse_git_owner("https://github.com/pajireg/llm-wiki") == "pajireg"
+    assert parse_git_owner("https://gitlab.example.com/team-a/repo.git") == "team-a"
+    assert parse_git_owner("ssh://git@github.com/pajireg/llm-wiki.git") == "pajireg"
+    assert parse_git_owner("") is None
+    assert parse_git_owner("not-a-url") is None
 
 
 # ── New tests: transcript_path / JSONL parsing ──────────────────────────────

@@ -11,166 +11,16 @@ from __future__ import annotations
 import datetime
 import json
 import pathlib
-import re
-import subprocess
 import sys
 
-
-def get_git_info(cwd: str) -> tuple[str | None, str | None]:
-    """Return (remote_url, owner) for the given cwd, or (None, None) if not a git repo or no remote."""
-    if not cwd:
-        return None, None
-    try:
-        result = subprocess.run(
-            ["git", "-C", cwd, "config", "--get", "remote.origin.url"],
-            capture_output=True, text=True, timeout=2,
-        )
-        if result.returncode != 0:
-            return None, None
-        url = result.stdout.strip()
-        if not url:
-            return None, None
-    except (FileNotFoundError, subprocess.TimeoutExpired):
-        return None, None
-
-    owner = parse_git_owner(url)
-    return url, owner
-
-
-def parse_git_owner(url: str) -> str | None:
-    """Extract the owner part from a git remote URL.
-
-    Supports:
-      git@github.com:OWNER/repo.git
-      git@github.com:OWNER/repo
-      https://github.com/OWNER/repo.git
-      https://github.com/OWNER/repo
-      ssh://git@host/OWNER/repo.git
-      https://gitlab.example.com/OWNER/repo.git
-    """
-    if not url:
-        return None
-    # SSH form: git@host:OWNER/repo(.git)?
-    m = re.match(r"^[^@]+@[^:]+:([^/]+)/", url)
-    if m:
-        return m.group(1)
-    # HTTPS or ssh:// form: <scheme>://[user@]host/OWNER/repo(.git)?
-    m = re.match(r"^[a-z]+://(?:[^@/]+@)?[^/]+/([^/]+)/", url)
-    if m:
-        return m.group(1)
-    return None
-
-
-def parse_namespaces_md(namespaces_md: pathlib.Path) -> tuple[dict[str, str], list[tuple[str, str]], str]:
-    """Parse namespaces.md.
-
-    Returns:
-      (owner_map, cwd_patterns, default)
-        owner_map: {git_owner: namespace}
-        cwd_patterns: [(glob_pattern, namespace)]
-        default: namespace string
-    """
-    owner_map: dict[str, str] = {}
-    cwd_patterns: list[tuple[str, str]] = []
-    default = "personal"
-
-    if not namespaces_md.is_file():
-        return owner_map, cwd_patterns, default
-
-    current_block: str | None = None  # "owner" | "cwd" | None
-
-    for line in namespaces_md.read_text().splitlines():
-        stripped = line.strip()
-
-        # Top-level keys
-        if stripped.startswith("git_owner_to_namespace:"):
-            current_block = "owner"
-            continue
-        if stripped.startswith("cwd_to_namespace:"):
-            current_block = "cwd"
-            continue
-        m_default = re.match(r"^default\s*:\s*([a-zA-Z_]+)\s*$", stripped)
-        if m_default and (not line or not line[0].isspace()):
-            default = m_default.group(1)
-            current_block = None
-            continue
-
-        if current_block is None:
-            continue
-
-        # End of block: top-level non-indented line that's a markdown header etc.
-        if line and not line[0].isspace() and stripped and not stripped.startswith("#"):
-            current_block = None
-            continue
-        if not stripped or stripped.startswith("#"):
-            continue
-
-        # Parse entry
-        if current_block == "owner":
-            # owner_name: namespace
-            m = re.match(r"^([a-zA-Z0-9_.-]+)\s*:\s*([a-zA-Z_]+)\s*$", stripped)
-            if m:
-                owner_map[m.group(1)] = m.group(2)
-        elif current_block == "cwd":
-            # "pattern": namespace
-            m = re.match(r'^"([^"]+)"\s*:\s*([a-zA-Z_]+)\s*$', stripped)
-            if m:
-                cwd_patterns.append((m.group(1), m.group(2)))
-
-    return owner_map, cwd_patterns, default
-
-
-def determine_namespace(
-    cwd: str,
-    git_owner: str | None,
-    owner_map: dict[str, str],
-    cwd_patterns: list[tuple[str, str]],
-    default: str,
-) -> str:
-    """Decide namespace via priority: git_owner → cwd pattern → default."""
-    # 1. git owner
-    if git_owner and git_owner in owner_map:
-        return owner_map[git_owner]
-
-    # 2. cwd pattern
-    for pattern, ns in cwd_patterns:
-        prefix = pattern
-        if prefix.endswith("/**"):
-            prefix = prefix[:-3]
-        elif prefix.endswith("**"):
-            prefix = prefix[:-2]
-        if cwd == prefix or cwd.startswith(prefix.rstrip("/") + "/"):
-            return ns
-
-    # 3. default
-    return default
-
-
-def yaml_quote(value: str) -> str:
-    """Quote a string value for safe YAML output."""
-    escaped = value.replace("\\", "\\\\").replace('"', '\\"')
-    return f'"{escaped}"'
-
-
-def slugify(text: str, max_len: int = 40) -> str:
-    """ASCII slug, lowercased, hyphen-separated."""
-    s = re.sub(r"[^a-zA-Z0-9가-힣\-]", "-", text).lower()
-    s = re.sub(r"-+", "-", s).strip("-")
-    return s[:max_len] or "session"
-
-
-def get_vault_path() -> pathlib.Path | None:
-    """Read vault path from ~/.config/llm-wiki/vault-path. Return None if not configured."""
-    config = pathlib.Path.home() / ".config" / "llm-wiki" / "vault-path"
-    if not config.is_file():
-        return None
-    path_str = config.read_text().strip()
-    if not path_str:
-        return None
-    vault = pathlib.Path(path_str)
-    if not vault.is_dir():
-        return None
-    return vault
+from _wiki_common import (
+    determine_namespace,
+    get_git_info,
+    get_vault_path,
+    parse_namespaces_md,
+    slugify,
+    yaml_quote,
+)
 
 
 def _short_input(input_obj: dict, max_len: int = 100) -> str:
@@ -228,7 +78,6 @@ def _format_assistant_content(content) -> str:
             name = block.get("name", "?")
             short = _short_input(block.get("input", {}))
             parts.append(f"[tool: {name}({short})]")
-        # thinking: skip for token savings
     return "\n".join(parts).strip()
 
 
@@ -240,7 +89,7 @@ def transcript_from_jsonl(jsonl_path: pathlib.Path, max_chars: int = 80_000) -> 
     if not jsonl_path.is_file():
         return ""
 
-    blocks: list[tuple[str, str]] = []  # (role, text)
+    blocks: list[tuple[str, str]] = []
     try:
         with jsonl_path.open(encoding="utf-8") as f:
             for line in f:
@@ -270,7 +119,6 @@ def transcript_from_jsonl(jsonl_path: pathlib.Path, max_chars: int = 80_000) -> 
     except OSError:
         return ""
 
-    # Coalesce: combine same-role consecutive blocks
     out_lines: list[str] = []
     last_role: str | None = None
     for role, text in blocks:
@@ -283,7 +131,6 @@ def transcript_from_jsonl(jsonl_path: pathlib.Path, max_chars: int = 80_000) -> 
 
     md = "\n".join(out_lines).strip()
 
-    # Truncate if too long
     if len(md) > max_chars:
         half = max_chars // 2
         md = md[:half] + "\n\n[... middle truncated ...]\n\n" + md[-half:]
@@ -320,11 +167,7 @@ def log_invocation(payload: dict, result: str, transcript_stat: str = "") -> Non
 
 
 def stat_transcript(path_str: str) -> str:
-    """Return a one-token summary of the transcript file at path_str.
-
-    Format: file=missing | file=size=<N>,lines=<L>,types=<t1:n1+t2:n2>,mtime=<iso>
-    Safe on any path — never raises.
-    """
+    """Return a one-token summary of the transcript file at path_str."""
     if not path_str:
         return "file=none"
     try:
@@ -354,7 +197,6 @@ def stat_transcript(path_str: str) -> str:
 
 
 def main() -> int:
-    # Read stdin first so we can log payload shape on every code path
     raw = sys.stdin.read()
     payload: dict = {}
     if raw:
@@ -379,12 +221,10 @@ def main() -> int:
     session_id = payload.get("session_id", "unknown")
     cwd = payload.get("cwd", "")
 
-    # Primary: read transcript from transcript_path (Claude Code's actual input format)
     transcript_path = payload.get("transcript_path", "")
     transcript = ""
     if transcript_path:
         transcript = transcript_from_jsonl(pathlib.Path(transcript_path))
-    # Fallback: direct transcript field (used by tests)
     if not transcript:
         transcript = payload.get("transcript", "")
 
@@ -396,10 +236,8 @@ def main() -> int:
         )
         return 0
 
-    # Extract git info from cwd
     git_remote, git_owner = get_git_info(cwd)
 
-    # Parse namespaces.md and decide
     owner_map, cwd_patterns, default = parse_namespaces_md(vault / "schema" / "namespaces.md")
     namespace = determine_namespace(cwd, git_owner, owner_map, cwd_patterns, default)
 
@@ -410,7 +248,6 @@ def main() -> int:
     session_prefix = session_id[:8] if session_id else "unknown"
     filename = f"{today}-{slug}-{session_prefix}.md"
 
-    # Optional git frontmatter lines
     git_lines = ""
     if git_remote:
         git_lines += f"git_remote: {yaml_quote(git_remote)}\n"

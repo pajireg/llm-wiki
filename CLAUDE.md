@@ -31,9 +31,10 @@ See `docs/superpowers/specs/2026-05-18-llm-wiki-design.md` and `docs/superpowers
 **Day-1 hard rules**:
 1. Sources are immutable — only `processed:` and `updated:` flags can be touched.
 2. Every wiki page MUST have non-empty `sources:`.
-3. Frontmatter is the source of truth.
-4. Schema is user-owned; the plugin NEVER auto-overwrites it.
-5. Git auto-commit only if the vault is a git repo.
+3. Every wiki page (except `source` type) MUST have a `summary` field (1-2 sentences, used by auto-injection).
+4. Frontmatter is the source of truth.
+5. Schema is user-owned; the plugin NEVER auto-overwrites it.
+6. Git auto-commit only if the vault is a git repo.
 
 ## Repository layout
 
@@ -41,12 +42,15 @@ See `docs/superpowers/specs/2026-05-18-llm-wiki-design.md` and `docs/superpowers
 .claude-plugin/{plugin.json, marketplace.json}   # plugin + marketplace metadata
 commands/                                         # 5 slash commands (markdown)
 skills/llm-wiki/SKILL.md                          # loaded by every /llm-wiki:* command
-hooks/{hooks.json, session-end-capture.sh, session-end-capture.py}
+hooks/
+  hooks.json                                      # SessionEnd + SubagentStop registration
+  session-end-capture.{sh,py}                     # transcript → sources/claude-sessions/
+  _wiki_common.py                                 # shared utils (vault-path, namespace, frontmatter)
 templates/                                        # copied into vault by /llm-wiki:init
   schema/                                         # 6-file constitution
   manual/welcome.md                               # onboarding source (user's first ingest)
   README.template.md, gitignore.template
-scripts/                                          # validate-schema.py, install-hook.sh
+scripts/                                          # validate-schema.py, install-hook.sh, rebuild-index.py
 tests/                                            # pytest + JSONL fixtures
 docs/superpowers/{specs, plans}/                  # design doc + implementation plan
 ```
@@ -63,6 +67,15 @@ docs/superpowers/{specs, plans}/                  # design doc + implementation 
 ## Vault auto-discovery
 
 After `/llm-wiki:init`, the active vault's absolute path is recorded at `~/.config/llm-wiki/vault-path`. The SessionEnd hook reads this on every session end. No env vars, no settings.json edits — install → init → it works.
+
+## Search index (v0.5.0+)
+
+Each vault has a SQLite FTS5 index at `<vault>/.llm-wiki/index.db` (git-ignored):
+- Built by `scripts/rebuild-index.py <vault>` for a full rebuild.
+- Updated by `scripts/rebuild-index.py <vault> --upsert <path...>` from `/llm-wiki:ingest`.
+- Self-healing: corrupt DB is wiped and rebuilt on next open.
+- Schema: `pages(id, path, namespace, type, title, summary, updated, mtime)` + FTS5 virtual table `pages_fts(id UNINDEXED, title, summary, body)` with `unicode61` tokenizer (handles Korean + English).
+- Powers the upcoming UserPromptSubmit auto-injection hook (v0.6.0).
 
 ## Namespace inference
 

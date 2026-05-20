@@ -52,6 +52,7 @@ Unanswered, follow-up target.
 ---
 type: topic | entity | note | source | question
 namespace: personal | work | tech | projects | people
+summary: "1-2 line TL;DR of this page (~200 chars max). Used by auto-injection."
 created: YYYY-MM-DD
 updated: YYYY-MM-DD
 sources:
@@ -59,5 +60,16 @@ sources:
 tags: []
 ---
 ```
+
+### `summary` field
+
+Every wiki page (everything except `source` type) must have a `summary`. It is what
+the auto-context-injection hook surfaces in every Claude conversation, so make it
+self-contained and informative on its own.
+
+- 1-2 sentences, ~200 chars max
+- Plain prose, no markdown decoration
+- Written/refreshed by `/llm-wiki:ingest`, not by hand
+- Missing `summary` → linter warns; the search hook falls back to the first body paragraph
 
 If unsure on classification, use the nearest type and set `confidence: low` (note) or note in body.
