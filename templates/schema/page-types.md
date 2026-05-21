@@ -78,9 +78,11 @@ self-contained and informative on its own.
 Both are LLM-generated to widen what queries can find a page — they are indexed
 but never shown to the reader.
 
-- `aliases` — alternate names / abbreviations for the page subject (already used by
-  `topic`/`entity` for duplicate prevention; now also indexed for search).
-- `keywords` — 5-15 related concept/topic terms.
+- `keywords` — 5-15 related concept/topic terms. Common to all wiki types (it is in
+  the common frontmatter block above).
+- `aliases` — alternate names / abbreviations for the page subject. Declared on the
+  `topic` and `entity` types (see their sections above), where it also prevents
+  duplicates; it is now indexed for search too. Not part of the common block.
 - Write both in the user's primary language **and** English variants.
 - Optional: a missing field is fine; the page still indexes on title/summary/body.
 
