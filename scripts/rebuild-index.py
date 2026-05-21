@@ -60,12 +60,27 @@ def ensure_db_dir(vault: pathlib.Path) -> pathlib.Path:
     return db_dir / "index.db"
 
 
+def _fts_is_current(conn: sqlite3.Connection) -> bool:
+    """True if pages_fts has the aliases+keywords columns (current schema)."""
+    try:
+        cols = {r[1] for r in conn.execute("PRAGMA table_info(pages_fts)").fetchall()}
+    except sqlite3.Error:
+        return False
+    return {"aliases", "keywords"}.issubset(cols)
+
+
 def open_db(vault: pathlib.Path) -> sqlite3.Connection:
-    """Open the index DB, creating schema if needed. Heals on corruption."""
+    """Open the index DB, creating schema if needed. Heals corruption and
+    migrates a stale (pre-aliases/keywords) FTS5 schema by wiping it."""
     db_path = ensure_db_dir(vault)
     try:
         conn = sqlite3.connect(str(db_path))
         conn.executescript(SCHEMA_SQL)
+        if not _fts_is_current(conn):
+            conn.close()
+            db_path.unlink(missing_ok=True)
+            conn = sqlite3.connect(str(db_path))
+            conn.executescript(SCHEMA_SQL)
         conn.commit()
         return conn
     except sqlite3.DatabaseError:
@@ -195,8 +210,21 @@ def full_rebuild(vault: pathlib.Path) -> tuple[int, int]:
 def upsert_paths(vault: pathlib.Path, paths: list[pathlib.Path]) -> tuple[int, int, int]:
     """Upsert (or remove if missing) specific paths.
 
+    If the existing index predates the aliases/keywords schema, a full rebuild is
+    required for completeness (the migration wipes the stale index).
     Returns (upserted, removed, errors).
     """
+    db_path = ensure_db_dir(vault)
+    if db_path.exists():
+        probe = sqlite3.connect(str(db_path))
+        try:
+            stale = not _fts_is_current(probe)
+        finally:
+            probe.close()
+        if stale:
+            indexed, errors = full_rebuild(vault)
+            return indexed, 0, errors
+
     conn = open_db(vault)
     upserted = 0
     removed = 0

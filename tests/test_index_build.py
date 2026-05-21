@@ -228,3 +228,47 @@ def test_page_without_aliases_or_keywords_still_indexes(tmp_path):
     rows = db_rows(
         vault, "SELECT id FROM pages_fts WHERE pages_fts MATCH ?", ("Plain",))
     assert rows == [("plain",)]
+
+
+def _make_legacy_index(vault: Path) -> None:
+    """Create an old-schema index.db: pages_fts WITHOUT aliases/keywords columns."""
+    db_dir = vault / ".llm-wiki"
+    db_dir.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(str(db_dir / "index.db"))
+    conn.executescript(textwrap.dedent("""
+        CREATE TABLE pages (
+          id TEXT PRIMARY KEY, path TEXT NOT NULL, namespace TEXT NOT NULL,
+          type TEXT NOT NULL, title TEXT, summary TEXT, updated TEXT, mtime REAL
+        );
+        CREATE VIRTUAL TABLE pages_fts USING fts5(
+          id UNINDEXED, title, summary, body,
+          tokenize='unicode61 remove_diacritics 2'
+        );
+    """))
+    conn.execute(
+        "INSERT INTO pages (id, path, namespace, type, title, summary, updated, mtime) "
+        "VALUES ('stale', 'wiki/tech/stale.md', 'tech', 'topic', 'Stale', 's', '2026-01-01', 0.0)")
+    conn.execute(
+        "INSERT INTO pages_fts (id, title, summary, body) VALUES ('stale','Stale','s','b')")
+    conn.commit()
+    conn.close()
+
+
+def test_upsert_on_legacy_index_triggers_full_rebuild(tmp_path):
+    vault = make_vault(tmp_path)
+    _make_legacy_index(vault)
+    page = write_page(vault, "wiki/tech/fresh.md", {
+        "type": "topic", "namespace": "tech",
+        "summary": "Fresh page with aliases.",
+        "aliases": ["신선페이지"],
+        "created": "2026-05-01", "updated": "2026-05-01",
+    }, "# Fresh\n\nbody")
+
+    result = run_rebuild(vault, "--upsert", str(page.relative_to(vault)))
+    assert result.returncode == 0, result.stderr
+
+    cols = [r[1] for r in db_rows(vault, "PRAGMA table_info(pages_fts)")]
+    assert "aliases" in cols and "keywords" in cols
+    rows = db_rows(
+        vault, "SELECT id FROM pages_fts WHERE pages_fts MATCH ?", ("신선페이지",))
+    assert rows == [("fresh",)]
