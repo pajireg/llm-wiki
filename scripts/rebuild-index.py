@@ -76,6 +76,8 @@ def open_db(vault: pathlib.Path) -> sqlite3.Connection:
     try:
         conn = sqlite3.connect(str(db_path))
         conn.executescript(SCHEMA_SQL)
+        # Defensive guard for any direct caller: full_rebuild wipes first and
+        # upsert_paths probes before calling here, so this rarely fires today.
         if not _fts_is_current(conn):
             conn.close()
             db_path.unlink(missing_ok=True)
