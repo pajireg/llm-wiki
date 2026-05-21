@@ -46,7 +46,7 @@ CREATE TABLE IF NOT EXISTS pages (
 
 CREATE VIRTUAL TABLE IF NOT EXISTS pages_fts USING fts5(
   id UNINDEXED,
-  title, summary, body,
+  title, summary, body, aliases, keywords,
   tokenize='unicode61 remove_diacritics 2'
 );
 
@@ -60,12 +60,29 @@ def ensure_db_dir(vault: pathlib.Path) -> pathlib.Path:
     return db_dir / "index.db"
 
 
+def _fts_is_current(conn: sqlite3.Connection) -> bool:
+    """True if pages_fts has the aliases+keywords columns (current schema)."""
+    try:
+        cols = {r[1] for r in conn.execute("PRAGMA table_info(pages_fts)").fetchall()}
+    except sqlite3.Error:
+        return False
+    return {"aliases", "keywords"}.issubset(cols)
+
+
 def open_db(vault: pathlib.Path) -> sqlite3.Connection:
-    """Open the index DB, creating schema if needed. Heals on corruption."""
+    """Open the index DB, creating schema if needed. Heals corruption and
+    migrates a stale (pre-aliases/keywords) FTS5 schema by wiping it."""
     db_path = ensure_db_dir(vault)
     try:
         conn = sqlite3.connect(str(db_path))
         conn.executescript(SCHEMA_SQL)
+        # Defensive guard for any direct caller: full_rebuild wipes first and
+        # upsert_paths probes before calling here, so this rarely fires today.
+        if not _fts_is_current(conn):
+            conn.close()
+            db_path.unlink(missing_ok=True)
+            conn = sqlite3.connect(str(db_path))
+            conn.executescript(SCHEMA_SQL)
         conn.commit()
         return conn
     except sqlite3.DatabaseError:
@@ -107,6 +124,15 @@ def iter_wiki_pages(vault: pathlib.Path):
         yield path
 
 
+def flatten_terms(value) -> str:
+    """Flatten a frontmatter list (or string) of terms into one indexable string."""
+    if isinstance(value, list):
+        return " ".join(str(x).strip() for x in value if str(x).strip())
+    if isinstance(value, str):
+        return value.strip()
+    return ""
+
+
 def upsert_page(conn: sqlite3.Connection, vault: pathlib.Path, md_path: pathlib.Path) -> bool:
     """Upsert a single page into the index. Returns True on success."""
     try:
@@ -124,6 +150,8 @@ def upsert_page(conn: sqlite3.Connection, vault: pathlib.Path, md_path: pathlib.
         summary = derive_summary_fallback(body)
     updated = fm.get("updated", "") if isinstance(fm.get("updated", ""), str) else ""
     title = extract_title(body, page_id)
+    aliases = flatten_terms(fm.get("aliases"))
+    keywords = flatten_terms(fm.get("keywords"))
     try:
         mtime = md_path.stat().st_mtime
     except OSError:
@@ -146,8 +174,9 @@ def upsert_page(conn: sqlite3.Connection, vault: pathlib.Path, md_path: pathlib.
     )
     conn.execute("DELETE FROM pages_fts WHERE id = ?", (page_id,))
     conn.execute(
-        "INSERT INTO pages_fts (id, title, summary, body) VALUES (?, ?, ?, ?)",
-        (page_id, title, summary, body),
+        "INSERT INTO pages_fts (id, title, summary, body, aliases, keywords) "
+        "VALUES (?, ?, ?, ?, ?, ?)",
+        (page_id, title, summary, body, aliases, keywords),
     )
     return True
 
@@ -183,8 +212,21 @@ def full_rebuild(vault: pathlib.Path) -> tuple[int, int]:
 def upsert_paths(vault: pathlib.Path, paths: list[pathlib.Path]) -> tuple[int, int, int]:
     """Upsert (or remove if missing) specific paths.
 
+    If the existing index predates the aliases/keywords schema, a full rebuild is
+    required for completeness (the migration wipes the stale index).
     Returns (upserted, removed, errors).
     """
+    db_path = ensure_db_dir(vault)
+    if db_path.exists():
+        probe = sqlite3.connect(str(db_path))
+        try:
+            stale = not _fts_is_current(probe)
+        finally:
+            probe.close()
+        if stale:
+            indexed, errors = full_rebuild(vault)
+            return indexed, 0, errors
+
     conn = open_db(vault)
     upserted = 0
     removed = 0

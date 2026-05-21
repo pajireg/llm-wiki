@@ -31,6 +31,12 @@ MAX_TOKENS = 12
 MIN_TOKEN_LEN = 2
 TOP_K = 5
 
+# BM25 column weights, in pages_fts column order:
+# id(UNINDEXED), title, summary, body, aliases, keywords.
+# Higher = the column contributes more to relevance. aliases is the strongest
+# signal (exact alternate-name hit); body is the baseline.
+BM25_WEIGHTS = (0.0, 3.0, 2.0, 1.0, 5.0, 2.0)
+
 
 def sanitize_fts5_query(prompt: str) -> str:
     """Convert a free-form prompt into a safe FTS5 OR query.
@@ -68,23 +74,24 @@ def search_index(
     except sqlite3.Error:
         return []
     try:
+        weights = ", ".join(str(w) for w in BM25_WEIGHTS)
         if namespace:
-            sql = """
+            sql = f"""
                 SELECT p.id, p.path, p.namespace, p.type, p.title, p.summary
                 FROM pages_fts f
                 JOIN pages p ON p.id = f.id
                 WHERE f.pages_fts MATCH ? AND p.namespace = ?
-                ORDER BY f.rank
+                ORDER BY bm25(pages_fts, {weights})
                 LIMIT ?
             """
             params: tuple = (query, namespace, limit)
         else:
-            sql = """
+            sql = f"""
                 SELECT p.id, p.path, p.namespace, p.type, p.title, p.summary
                 FROM pages_fts f
                 JOIN pages p ON p.id = f.id
                 WHERE f.pages_fts MATCH ?
-                ORDER BY f.rank
+                ORDER BY bm25(pages_fts, {weights})
                 LIMIT ?
             """
             params = (query, limit)

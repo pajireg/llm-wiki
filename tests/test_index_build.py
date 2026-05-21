@@ -190,3 +190,85 @@ def test_empty_wiki_dir_produces_empty_index(tmp_path):
     assert "indexed=0 errors=0" in result.stdout
     rows = db_rows(vault, "SELECT COUNT(*) FROM pages")
     assert rows[0][0] == 0
+
+
+def test_aliases_and_keywords_are_searchable(tmp_path):
+    vault = make_vault(tmp_path)
+    write_page(vault, "wiki/tech/k8s.md", {
+        "type": "topic", "namespace": "tech",
+        "summary": "Container orchestration platform notes.",
+        "aliases": ["쿠버네티스", "K8s"],
+        "keywords": ["오케스트레이션", "orchestration", "container scheduling"],
+        "created": "2026-05-01", "updated": "2026-05-01",
+    }, "# Kubernetes\n\nDeployment and service basics.")
+
+    run_rebuild(vault)
+
+    # Matches on an alias that appears nowhere in title/summary/body
+    by_alias = db_rows(
+        vault, "SELECT id FROM pages_fts WHERE pages_fts MATCH ?", ("쿠버네티스",))
+    assert by_alias == [("k8s",)]
+
+    # Matches on a keyword that appears nowhere in title/summary/body
+    by_keyword = db_rows(
+        vault, "SELECT id FROM pages_fts WHERE pages_fts MATCH ?", ("오케스트레이션",))
+    assert by_keyword == [("k8s",)]
+
+
+def test_page_without_aliases_or_keywords_still_indexes(tmp_path):
+    vault = make_vault(tmp_path)
+    write_page(vault, "wiki/tech/plain.md", {
+        "type": "topic", "namespace": "tech",
+        "summary": "A page with no aliases or keywords.",
+        "created": "2026-05-01", "updated": "2026-05-01",
+    }, "# Plain\n\nbody text")
+
+    result = run_rebuild(vault)
+    assert "indexed=1 errors=0" in result.stdout
+    rows = db_rows(
+        vault, "SELECT id FROM pages_fts WHERE pages_fts MATCH ?", ("Plain",))
+    assert rows == [("plain",)]
+
+
+def _make_legacy_index(vault: Path) -> None:
+    """Create an old-schema index.db: pages_fts WITHOUT aliases/keywords columns."""
+    db_dir = vault / ".llm-wiki"
+    db_dir.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(str(db_dir / "index.db"))
+    conn.executescript(textwrap.dedent("""
+        CREATE TABLE pages (
+          id TEXT PRIMARY KEY, path TEXT NOT NULL, namespace TEXT NOT NULL,
+          type TEXT NOT NULL, title TEXT, summary TEXT, updated TEXT, mtime REAL
+        );
+        CREATE VIRTUAL TABLE pages_fts USING fts5(
+          id UNINDEXED, title, summary, body,
+          tokenize='unicode61 remove_diacritics 2'
+        );
+    """))
+    conn.execute(
+        "INSERT INTO pages (id, path, namespace, type, title, summary, updated, mtime) "
+        "VALUES ('stale', 'wiki/tech/stale.md', 'tech', 'topic', 'Stale', 's', '2026-01-01', 0.0)")
+    conn.execute(
+        "INSERT INTO pages_fts (id, title, summary, body) VALUES ('stale','Stale','s','b')")
+    conn.commit()
+    conn.close()
+
+
+def test_upsert_on_legacy_index_triggers_full_rebuild(tmp_path):
+    vault = make_vault(tmp_path)
+    _make_legacy_index(vault)
+    page = write_page(vault, "wiki/tech/fresh.md", {
+        "type": "topic", "namespace": "tech",
+        "summary": "Fresh page with aliases.",
+        "aliases": ["신선페이지"],
+        "created": "2026-05-01", "updated": "2026-05-01",
+    }, "# Fresh\n\nbody")
+
+    result = run_rebuild(vault, "--upsert", str(page.relative_to(vault)))
+    assert result.returncode == 0, result.stderr
+
+    cols = [r[1] for r in db_rows(vault, "PRAGMA table_info(pages_fts)")]
+    assert "aliases" in cols and "keywords" in cols
+    rows = db_rows(
+        vault, "SELECT id FROM pages_fts WHERE pages_fts MATCH ?", ("신선페이지",))
+    assert rows == [("fresh",)]

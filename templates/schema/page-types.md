@@ -53,6 +53,7 @@ Unanswered, follow-up target.
 type: topic | entity | note | source | question
 namespace: personal | work | tech | projects | people
 summary: "1-2 line TL;DR of this page (~200 chars max). Used by auto-injection."
+keywords: []   # related concept/topic terms (user language + English); feeds search
 created: YYYY-MM-DD
 updated: YYYY-MM-DD
 sources:
@@ -71,5 +72,18 @@ self-contained and informative on its own.
 - Plain prose, no markdown decoration
 - Written/refreshed by `/llm-wiki:ingest`, not by hand
 - Missing `summary` → linter warns; the search hook falls back to the first body paragraph
+
+### `aliases` & `keywords` (search expansion)
+
+Both are LLM-generated to widen what queries can find a page — they are indexed
+but never shown to the reader.
+
+- `keywords` — 5-15 related concept/topic terms. Common to all wiki types (it is in
+  the common frontmatter block above).
+- `aliases` — alternate names / abbreviations for the page subject. Declared on the
+  `topic` and `entity` types (see their sections above), where it also prevents
+  duplicates; it is now indexed for search too. Not part of the common block.
+- Write both in the user's primary language **and** English variants.
+- Optional: a missing field is fine; the page still indexes on title/summary/body.
 
 If unsure on classification, use the nearest type and set `confidence: low` (note) or note in body.
