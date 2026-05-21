@@ -218,3 +218,30 @@ def test_special_chars_in_prompt_are_sanitized(tmp_path):
     })
     assert result.returncode == 0, result.stderr
     assert "[[ssh]]" in result.stdout
+
+
+def test_alias_match_outranks_body_only_match(tmp_path):
+    vault = make_vault(tmp_path)
+    # Page A: the query term "쿠버네티스" lives only in aliases.
+    write_page(vault, "wiki/tech/k8s.md", {
+        "type": "topic", "namespace": "tech",
+        "summary": "Orchestration platform overview.",
+        "aliases": ["쿠버네티스"],
+        "created": "2026-05-01", "updated": "2026-05-01",
+    }, "# Kubernetes\n\nGeneric platform notes.")
+    # Page B: the query term appears once, buried in the body.
+    write_page(vault, "wiki/tech/notes.md", {
+        "type": "topic", "namespace": "tech",
+        "summary": "Assorted infra notes.",
+        "created": "2026-05-01", "updated": "2026-05-01",
+    }, "# Notes\n\nWe also mention 쿠버네티스 once here in passing.")
+    build_index(vault)
+    home = configure_home(tmp_path, vault)
+
+    result = run_hook(home, {"prompt": "쿠버네티스 설정 방법", "cwd": str(vault)})
+
+    assert result.returncode == 0
+    out = result.stdout
+    assert "[[k8s]]" in out and "[[notes]]" in out
+    # The alias-weighted page must be listed before the body-only page.
+    assert out.index("[[k8s]]") < out.index("[[notes]]")
