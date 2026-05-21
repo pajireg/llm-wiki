@@ -48,6 +48,10 @@ For each target source:
    - **Relations**: when this change connects two pages meaningfully, add `related:` (or other appropriate relation) on both sides.
    - **Contradictions**: if new info contradicts existing claim, add `contradicts:` on both sides AND leave the older claim with a body marker (do not delete).
    - **`summary` field**: every created/updated page must have a 1-2 sentence `summary` (~200 chars max) in its frontmatter. Rewrite when the page's focus shifted; leave alone otherwise.
+   - **`aliases` + `keywords`**: on every created/updated wiki page, write search-expansion frontmatter so concept/synonym queries can find it:
+     - `aliases:` — alternate names, abbreviations, and the term in the user's primary language **and** English (e.g. `["쿠버네티스", "K8s"]`). High-precision.
+     - `keywords:` — 5–15 related concept/topic terms, again in the user's language + English. Recall-oriented.
+     These feed the FTS5 index; they are not shown to the reader. Omit only when nothing sensible applies.
 
 5. **Mark source processed**:
    - Update source frontmatter: `processed: true`, `updated: <today>`.

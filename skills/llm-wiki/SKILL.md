@@ -35,6 +35,9 @@ The vault keeps a SQLite FTS5 search index at `.llm-wiki/index.db` (git-ignored,
 
 - Ingest must keep the index in sync: after touching pages, call
   `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/rebuild-index.py "<vault>" --upsert <path...>`.
+- Ingest writes `aliases` + `keywords` frontmatter (user language + English) on every
+  touched wiki page; the index searches them so synonym/concept queries match. Optional
+  per page — a page without them still indexes on title/summary/body.
 - For bulk operations or initial setup, run the same script without `--upsert` for a full rebuild.
 - The index can always be rebuilt from the .md files — losing it is harmless.
 
