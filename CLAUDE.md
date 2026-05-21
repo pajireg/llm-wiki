@@ -35,6 +35,7 @@ See `docs/superpowers/specs/2026-05-18-llm-wiki-design.md` and `docs/superpowers
 4. Frontmatter is the source of truth.
 5. Schema is user-owned; the plugin NEVER auto-overwrites it.
 6. Git auto-commit only if the vault is a git repo.
+7. `/llm-wiki:ingest` is a sync operation when the vault has a git remote — pull before, push after. Opt-out: `LLM_WIKI_NO_SYNC=1` or `<vault>/.llm-wiki/no-sync`.
 
 ## Repository layout
 
@@ -126,6 +127,16 @@ claude plugin validate .
 ## Current version state
 
 See `.claude-plugin/plugin.json` for the latest. Version history is in git log (search for `release:` or `feat:` commits).
+
+## Git sync (v0.7.0+)
+
+`/llm-wiki:ingest` runs `git pull --no-rebase` before synthesizing, then `git push` after committing. This keeps the vault in sync across machines without manual pull/push.
+
+**Conflict resolution** (when pull has conflicts): wiki pages are merged additively (both sides); source frontmatter takes `processed: true` if either side has it; ambiguous/destructive conflicts are reported to the user without auto-resolving.
+
+**Opt-out**: `LLM_WIKI_NO_SYNC=1` env or `<vault>/.llm-wiki/no-sync` file → local commit only, no pull/push.
+
+**Wiki-operation sessions**: sessions where the user ran `/llm-wiki:` commands are marked `processed: true` by ingest without synthesizing. This prevents self-referential noise (e.g., an ingest session being re-ingested). Explicitly specified paths always process.
 
 ## Open items (Phase 2+ work)
 

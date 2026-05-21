@@ -12,11 +12,23 @@ Use the `llm-wiki` skill from this plugin first (load schema and invariants).
 - A single file path → ingest just that file.
 - `--recent 1d` / `--recent 7d` → ingest unprocessed sources whose `ingested_at` is within the duration.
 
+## Git sync — pull first (if git repo + remote)
+
+Before processing any source, run `git pull --no-rebase`. If pull has conflicts:
+- *Wiki pages*: merge both sides (additive), `git add`.
+- *Sources*: take `processed: true` if either side has it; body is immutable, pick either. `git add`.
+- *Ambiguous/destructive conflicts*: stop and report to the user.
+- After resolving: `git commit` to complete the merge.
+
+Skip pull/push if `LLM_WIKI_NO_SYNC=1` env or `<vault>/.llm-wiki/no-sync` file exists.
+
 ## Per-source procedure (follow `schema/ingest-rules.md`)
 
 For each target source:
 
 1. **Read source** — full content + frontmatter. Note `namespace`.
+
+   **Wiki-operation check**: if the source is purely a record of running `/llm-wiki:` commands (ingest/lint/init/etc.) with no new substantive knowledge, mark `processed: true` and skip synthesis. If it also contains substantive discussion, synthesize only that part.
 
 2. **Identify candidates** — search the wiki:
    - Grep `wiki/<namespace>/` for keywords from source title + body (top 20 terms by TF).
@@ -48,7 +60,7 @@ For each target source:
    - Or, after a large batch: `python3 .../rebuild-index.py "$PWD"` for a full rebuild.
    - The index DB at `.llm-wiki/index.db` is what the auto-context-injection hook reads.
 
-7. **Commit (if git)**: see `llm-wiki` skill section on commit behavior.
+7. **Commit + push (if git)**: see `llm-wiki` skill — "Git sync behavior" section. After all sources processed, commit then `git push`. If push rejected, retry once (pull + push).
 
 ## Report
 

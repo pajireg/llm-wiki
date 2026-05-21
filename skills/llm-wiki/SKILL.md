@@ -38,14 +38,31 @@ The vault keeps a SQLite FTS5 search index at `.llm-wiki/index.db` (git-ignored,
 - For bulk operations or initial setup, run the same script without `--upsert` for a full rebuild.
 - The index can always be rebuilt from the .md files — losing it is harmless.
 
-## Commit behavior
+## Git sync behavior
 
-If the vault is a git repo (i.e., `.git/` exists at vault root):
-- After ingest: commit with message `wiki: ingest <source-name> (N pages)`
-- After lint with fixes (only if user explicitly asked to fix): commit with `wiki: lint fixes`
-- Never push automatically. User controls remote.
+If the vault is **not** a git repo: skip all git steps silently. No warnings.
 
-If the vault is not a git repo: skip silently. No warnings.
+### ingest — pull → synthesize → commit → push
+
+When the vault is a git repo with a remote configured, `/llm-wiki:ingest` is a sync operation:
+
+1. **Pull first**: `git pull --no-rebase` (merge strategy, ignores user's `pull.rebase` config) before synthesizing. This prevents divergence across machines.
+2. **Conflict resolution** (if pull has conflicts):
+   - *Wiki pages*: both sides are additive — merge both PCs' contributions, then `git add`.
+   - *Sources*: frontmatter differs (`processed:`, `updated:`) → take `processed: true` if either side has it; body is immutable, pick either. Then `git add`.
+   - *Ambiguous or destructive* (content appears deleted): **stop and report to the user** — do NOT auto-resolve.
+   - After resolving all conflicts: `git commit` to complete the merge, then continue.
+3. **Synthesize** (per-source steps as usual).
+4. **Commit**: `wiki: ingest <source-name> (N pages)`.
+5. **Push**: `git push`. If rejected (race), retry once: pull + push.
+
+### lint — commit only
+
+After lint with fixes (only if user explicitly asked to fix): commit `wiki: lint fixes`. No push.
+
+### Opt-out of auto-sync
+
+Set `LLM_WIKI_NO_SYNC=1` env or create `<vault>/.llm-wiki/no-sync` file → local commit only, no pull/push.
 
 ## Working directory rule
 
