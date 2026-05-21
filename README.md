@@ -41,6 +41,12 @@ After init, every Claude session you run anywhere on your machine is auto-saved 
 | `/llm-wiki:lint` | Run 9 health checks; write report |
 | `/llm-wiki:upgrade-schema` | Diff and merge updated schema templates |
 
+## Multi-machine sync (v0.7.0+)
+
+If your vault is a git repository with a remote, `/llm-wiki:ingest` keeps it in sync automatically: it pulls before synthesizing and pushes after committing. Use the same vault from multiple machines without manual `git pull`.
+
+**Opt-out**: `LLM_WIKI_NO_SYNC=1 claude` or `touch <vault>/.llm-wiki/no-sync` — local commit only, no pull/push.
+
 ## Auto-injection (v0.6.0+)
 
 After init, every Claude prompt — anywhere on your machine — silently searches your vault and injects the most relevant page summaries as context. You don't need `/llm-wiki:ask` to benefit from the wiki; Claude has it.

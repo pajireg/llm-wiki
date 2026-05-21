@@ -28,7 +28,8 @@ Procedure the LLM follows on `/llm-wiki:ingest`.
    `scripts/rebuild-index.py <vault> --upsert <path>` (or full rebuild after
    bulk ingest). The DB lives at `<vault>/.llm-wiki/index.db` and is git-ignored.
 9. **Commit** (if vault is git repo) — meaningful message: `wiki: ingest <source-name>`.
-10. **Report** — list touched pages with one-line change summary.
+10. **Push** (if git repo + remote, unless opted out) — `git push`. If rejected, retry once (pull + push). Opt-out: `LLM_WIKI_NO_SYNC=1` env or `<vault>/.llm-wiki/no-sync` file.
+11. **Report** — list touched pages with one-line change summary.
 
 ## Page creation rules
 
@@ -40,6 +41,7 @@ Procedure the LLM follows on `/llm-wiki:ingest`.
 
 - Source has `processed: true` already.
 - Source body is empty/trivial (< 50 chars) — skip silently, do not mark `processed`.
+- Source is a wiki-operation record (the session ran `/llm-wiki:` commands with no new substantive knowledge) — mark `processed: true`, skip synthesis. If the session also contains substantive discussion, synthesize only that part. Explicitly specified paths (`/llm-wiki:ingest <path>`) are always processed regardless.
 
 ## Forbidden
 
