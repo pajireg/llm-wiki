@@ -190,3 +190,41 @@ def test_empty_wiki_dir_produces_empty_index(tmp_path):
     assert "indexed=0 errors=0" in result.stdout
     rows = db_rows(vault, "SELECT COUNT(*) FROM pages")
     assert rows[0][0] == 0
+
+
+def test_aliases_and_keywords_are_searchable(tmp_path):
+    vault = make_vault(tmp_path)
+    write_page(vault, "wiki/tech/k8s.md", {
+        "type": "topic", "namespace": "tech",
+        "summary": "Container orchestration platform notes.",
+        "aliases": ["쿠버네티스", "K8s"],
+        "keywords": ["오케스트레이션", "orchestration", "container scheduling"],
+        "created": "2026-05-01", "updated": "2026-05-01",
+    }, "# Kubernetes\n\nDeployment and service basics.")
+
+    run_rebuild(vault)
+
+    # Matches on an alias that appears nowhere in title/summary/body
+    by_alias = db_rows(
+        vault, "SELECT id FROM pages_fts WHERE pages_fts MATCH ?", ("쿠버네티스",))
+    assert by_alias == [("k8s",)]
+
+    # Matches on a keyword that appears nowhere in title/summary/body
+    by_keyword = db_rows(
+        vault, "SELECT id FROM pages_fts WHERE pages_fts MATCH ?", ("오케스트레이션",))
+    assert by_keyword == [("k8s",)]
+
+
+def test_page_without_aliases_or_keywords_still_indexes(tmp_path):
+    vault = make_vault(tmp_path)
+    write_page(vault, "wiki/tech/plain.md", {
+        "type": "topic", "namespace": "tech",
+        "summary": "A page with no aliases or keywords.",
+        "created": "2026-05-01", "updated": "2026-05-01",
+    }, "# Plain\n\nbody text")
+
+    result = run_rebuild(vault)
+    assert "indexed=1 errors=0" in result.stdout
+    rows = db_rows(
+        vault, "SELECT id FROM pages_fts WHERE pages_fts MATCH ?", ("Plain",))
+    assert rows == [("plain",)]

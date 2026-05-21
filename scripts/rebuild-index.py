@@ -46,7 +46,7 @@ CREATE TABLE IF NOT EXISTS pages (
 
 CREATE VIRTUAL TABLE IF NOT EXISTS pages_fts USING fts5(
   id UNINDEXED,
-  title, summary, body,
+  title, summary, body, aliases, keywords,
   tokenize='unicode61 remove_diacritics 2'
 );
 
@@ -107,6 +107,15 @@ def iter_wiki_pages(vault: pathlib.Path):
         yield path
 
 
+def flatten_terms(value) -> str:
+    """Flatten a frontmatter list (or string) of terms into one indexable string."""
+    if isinstance(value, list):
+        return " ".join(str(x).strip() for x in value if str(x).strip())
+    if isinstance(value, str):
+        return value.strip()
+    return ""
+
+
 def upsert_page(conn: sqlite3.Connection, vault: pathlib.Path, md_path: pathlib.Path) -> bool:
     """Upsert a single page into the index. Returns True on success."""
     try:
@@ -124,6 +133,8 @@ def upsert_page(conn: sqlite3.Connection, vault: pathlib.Path, md_path: pathlib.
         summary = derive_summary_fallback(body)
     updated = fm.get("updated", "") if isinstance(fm.get("updated", ""), str) else ""
     title = extract_title(body, page_id)
+    aliases = flatten_terms(fm.get("aliases"))
+    keywords = flatten_terms(fm.get("keywords"))
     try:
         mtime = md_path.stat().st_mtime
     except OSError:
@@ -146,8 +157,9 @@ def upsert_page(conn: sqlite3.Connection, vault: pathlib.Path, md_path: pathlib.
     )
     conn.execute("DELETE FROM pages_fts WHERE id = ?", (page_id,))
     conn.execute(
-        "INSERT INTO pages_fts (id, title, summary, body) VALUES (?, ?, ?, ?)",
-        (page_id, title, summary, body),
+        "INSERT INTO pages_fts (id, title, summary, body, aliases, keywords) "
+        "VALUES (?, ?, ?, ?, ?, ?)",
+        (page_id, title, summary, body, aliases, keywords),
     )
     return True
 
